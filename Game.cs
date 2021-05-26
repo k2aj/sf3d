@@ -14,8 +14,8 @@ namespace SF3D
     [StructLayout(LayoutKind.Sequential)]
     struct Vertex 
     {
-        Vector2 Position;
-        Color4 Color;
+        [layout(location=0)] Vector2 Position;
+        [layout(location=1)] Color4 Color;
 
         public Vertex(Vector2 position, Color4 color) => (Position, Color) = (position, color);
     }
@@ -41,8 +41,7 @@ namespace SF3D
             vbo.Upload(vertices.AsSpan());
 
             vao = new();
-            vao.VertexAttribPointer(vbo, 0, 2, VertexAttribPointerType.Float, false, Marshal.SizeOf<Vertex>(), Marshal.OffsetOf<Vertex>("Position"));
-            vao.VertexAttribPointer(vbo, 1, 4, VertexAttribPointerType.Float, false, Marshal.SizeOf<Vertex>(), Marshal.OffsetOf<Vertex>("Color"));
+            vao.AttachAttribs<Vertex>(vbo);
 
             vShader = new(ShaderType.VertexShader, @"
                 #version 330 core
