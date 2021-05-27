@@ -15,12 +15,36 @@ namespace DGL {
         public int Capacity {get; private set;}
         public VBO() => handle = GL.GenBuffer();
         public void Bind(BufferTarget target = BufferTarget.ArrayBuffer) => GL.BindBuffer(target, handle);
-        internal void EnsureBound(BufferTarget target) => Bind(target);
+        internal bool IsBound(BufferTarget target)
+        {
+            switch(target)
+            {
+                case BufferTarget.ArrayBuffer:        return GL.GetInteger(GetPName.ArrayBufferBinding)        == handle;
+                case BufferTarget.ElementArrayBuffer: return GL.GetInteger(GetPName.ElementArrayBufferBinding) == handle;
+                default: throw new NotImplementedException(target.ToString());
+            }
+        }
+        internal void EnsureBound(BufferTarget target)
+        {
+            #if DGL_LOG_MISSING_BIND
+                if(!IsBound(target))
+                    DebugUtils.LogUniqueStackTrace("WARNING: buffer object not bound.", 1);
+            #endif
+            #if DGL_AUTOBIND
+                Bind(target);
+            #endif
+        }
 
         public void Allocate<T>(int count, BufferUsageHint usage = BufferUsageHint.StaticDraw, BufferTarget target = BufferTarget.ArrayBuffer) where T : struct
         {
             EnsureBound(target);
             GL.BufferData(target, Capacity = Marshal.SizeOf<T>() * count, new IntPtr(0), usage);
+        }
+
+        public void Allocate<T>(Span<T> data, BufferUsageHint usage = BufferUsageHint.StaticDraw, BufferTarget target = BufferTarget.ArrayBuffer) where T : struct
+        {
+            EnsureBound(target);
+            GL.BufferData(target, Capacity = Marshal.SizeOf<T>() * data.Length, ref MemoryMarshal.AsRef<T>(MemoryMarshal.AsBytes(data)), usage);
         }
 
         public void Upload<T>(Span<T> data, int index = 0, BufferTarget target = BufferTarget.ArrayBuffer) where T : struct {
@@ -51,7 +75,17 @@ namespace DGL {
         private VAO(int handle) => this.handle = handle;
 
         public void Bind() => GL.BindVertexArray(handle);
-        internal void EnsureBound() => Bind();
+        internal bool IsBound() => GL.GetInteger(GetPName.VertexArrayBinding) == handle;
+        internal void EnsureBound()
+        {
+            #if DGL_LOG_MISSING_BIND
+            if(!IsBound())
+                DebugUtils.LogUniqueStackTrace("WARNING: vertex array object not bound.", 1);
+            #endif
+            #if DGL_AUTOBIND
+                Bind();
+            #endif
+        }
 
         public void VertexAttribPointer(VBO vbo, int attrib, int size, VertexAttribPointerType type, bool normalized, int stride, IntPtr offset)
         {
@@ -60,6 +94,11 @@ namespace DGL {
             GL.EnableVertexAttribArray(attrib);
             GL.VertexAttribPointer(attrib, size, type, normalized, stride, offset);
         }
+        public void AttachIndices(VBO vbo)
+        {
+            EnsureBound();
+            vbo.Bind(BufferTarget.ElementArrayBuffer);
+        } 
         public void AttachAttribs<Vertex>(VBO vbo) where Vertex : struct
         {
             EnsureBound();
@@ -154,6 +193,12 @@ namespace DGL {
         {
             EnsureBound();
             GL.DrawArrays(mode, first, count);
+        }
+
+        public void DrawIndexed(PrimitiveType mode, int first, int count, DrawElementsType indexType)
+        {
+            EnsureBound();
+            GL.DrawElements(mode, count, indexType, first);
         }
     }
 

@@ -2,8 +2,8 @@ using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
 
-namespace DGL {
-
+namespace DGL 
+{
     public sealed class Shader : IDisposable 
     {
         internal int handle;
@@ -52,7 +52,17 @@ namespace DGL {
         }
 
         public void Bind() => GL.UseProgram(handle);
-        internal void EnsureBound() => Bind();
+        internal bool IsBound() => GL.GetInteger(GetPName.CurrentProgram) == handle;
+        internal void EnsureBound()
+        {
+            #if DGL_LOG_MISSING_BIND
+            if(!IsBound())
+                DebugUtils.LogUniqueStackTrace("WARNING: Shader program not bound.", 1);
+            #endif
+            #if DGL_AUTOBIND
+                Bind();
+            #endif
+        }
 
         public void Dispose()
         {

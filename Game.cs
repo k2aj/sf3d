@@ -28,6 +28,7 @@ namespace SF3D
             new(new(1,1), Color4.RoyalBlue),
             new(new(-1,1), Color4.LightGoldenrodYellow)
         };
+        
         private VBO vbo;
         private VAO vao;
         private Shader vShader, fShader;
@@ -37,10 +38,12 @@ namespace SF3D
             UpdateFrequency = 60.0;
 
             vbo = new();
+            vbo.Bind(BufferTarget.ArrayBuffer);
             vbo.Allocate<Vertex>(vertices.Length);
             vbo.Upload(vertices.AsSpan());
 
             vao = new();
+            vao.Bind();
             vao.AttachAttribs<Vertex>(vbo);
 
             vShader = new(ShaderType.VertexShader, @"
@@ -88,6 +91,7 @@ namespace SF3D
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
             program.Bind();
+            vao.Bind();
             vao.Draw(PrimitiveType.TriangleFan, 0, vertices.Length);
 
             SwapBuffers();

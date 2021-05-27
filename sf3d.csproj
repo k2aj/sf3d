@@ -6,6 +6,7 @@
     <Enable>Nullable</Enable>
     <WarningsAsErrors>Nullable</WarningsAsErrors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>DGL_AUTOBIND;DGL_LOG_MISSING_BIND</DefineConstants>
     <GenerateDocumentationFiles>true</GenerateDocumentationFiles>
   </PropertyGroup>
   <ItemGroup>
