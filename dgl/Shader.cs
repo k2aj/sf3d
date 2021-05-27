@@ -1,6 +1,7 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
 
 namespace DGL 
 {
@@ -33,9 +34,10 @@ namespace DGL
         }
     }
 
-    public sealed class ShaderProgram : IDisposable
+    public class ShaderProgram : IDisposable
     {
         internal int handle;
+        private Dictionary<string,int> uniformLocations = new();
 
         public ShaderProgram(params Shader[] shaders)
         {
@@ -62,6 +64,15 @@ namespace DGL
             #if DGL_AUTOBIND
                 Bind();
             #endif
+        }
+
+        public int GetUniformLocation(string name)
+        {
+            if(uniformLocations.TryGetValue(name, out int l))
+                return l;
+            int location = GL.GetUniformLocation(handle, name);
+            uniformLocations[name] = location;
+            return location;
         }
 
         public void Dispose()

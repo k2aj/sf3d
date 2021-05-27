@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Runtime.InteropServices;
 
 using OpenTK.Mathematics;
@@ -11,6 +12,13 @@ using DGL;
 
 namespace SF3D
 {
+    sealed class ExampleShaderProgram : ShaderProgram
+    {
+        private int uModel;
+        public ExampleShaderProgram(params Shader[] shaders) : base(shaders) => uModel = GetUniformLocation("model");
+        public Matrix4 Model {set {EnsureBound(); GL.UniformMatrix4(uModel, false, ref value);}}
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     struct Vertex 
     {
@@ -32,7 +40,7 @@ namespace SF3D
         private VBO vbo;
         private VAO vao;
         private Shader vShader, fShader;
-        private ShaderProgram program;
+        private ExampleShaderProgram program;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             UpdateFrequency = 60.0;
@@ -52,9 +60,10 @@ namespace SF3D
                 layout(location=1) in vec4 color;
 
                 out vec4 vColor;
+                uniform mat4 model;
 
                 void main() {
-                    gl_Position = vec4(position, 0.5, 1.0);
+                    gl_Position = model*vec4(position, 0.5, 1.0);
                     vColor = color;
                 }
             ");
@@ -64,7 +73,7 @@ namespace SF3D
                 out vec4 fColor;
                 void main() {fColor = vColor;}
             ");
-            program = new(vShader, fShader);
+            program = new ExampleShaderProgram(vShader, fShader);
         }
 
         static void Main(string[] args)
@@ -84,13 +93,20 @@ namespace SF3D
             base.OnUpdateFrame(e);
         }
 
+        private float t = 0;
+
         protected override void OnRenderFrame(FrameEventArgs args)
         {
+            t += (float) args.Time;
+
             GL.Viewport(0, 0, Size.X, Size.Y);
             GL.ClearColor(new Color4(252,136,231,255));
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
+            
+
             program.Bind();
+            program.Model = Matrix4.CreateScale(0.5f,0.2f,1)*Matrix4.CreateRotationZ(t)*Matrix4.CreateTranslation(0.5f,0,0);
             vao.Bind();
             vao.Draw(PrimitiveType.TriangleFan, 0, vertices.Length);
 
