@@ -99,48 +99,52 @@ namespace DGL {
             EnsureBound();
             vbo.Bind(BufferTarget.ElementArrayBuffer);
         } 
-        public void AttachAttribs<Vertex>(VBO vbo) where Vertex : struct
+        public void AttachAttribs<Vertex>(VBO vbo, int attrib=0, bool normalized=false) where Vertex : struct
         {
             EnsureBound();
             vbo.EnsureBound(BufferTarget.ArrayBuffer);
-            AttachAttribs(typeof(Vertex), vbo, 0, Marshal.SizeOf<Vertex>(), 0);
+            AttachAttribs(typeof(Vertex), vbo, attrib, normalized, Marshal.SizeOf<Vertex>(), 0);
         }
 
-        private void AttachAttribs(Type T, VBO vbo, int attrib, int stride, int offset)
+        private void AttachAttribs(Type T, VBO vbo, int attrib, bool normalized, int stride, int offset)
         {
-            var fields = T.GetFields(BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public);
-            foreach(var field in fields)
+            if(attribTypes.ContainsKey(T))
             {
-                foreach(var layoutAttrib in field.GetCustomAttributes<layout>())
+                var typeDescriptor = attribTypes[T];
+                for(int i=0; i<typeDescriptor.attribCount; ++i)
                 {
-                    if(attribTypes.ContainsKey(field.FieldType))
+                    GL.EnableVertexAttribArray(attrib+i);
+                    GL.VertexAttribPointer(
+                        attrib+i, 
+                        typeDescriptor.count, 
+                        typeDescriptor.type, 
+                        normalized, 
+                        stride, 
+                        offset + Marshal.SizeOf(T)*i/typeDescriptor.attribCount
+                    );
+                }
+            }
+            else
+            {
+                var fields = T.GetFields(BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public);
+                foreach(var field in fields)
+                {
+                    foreach(var layoutAttrib in field.GetCustomAttributes<layout>())
                     {
-                        var typeDescriptor = attribTypes[field.FieldType];
-                        for(int i=0; i<typeDescriptor.attribCount; ++i)
-                        {
-                            GL.EnableVertexAttribArray(attrib+layoutAttrib.location+i);
-                            GL.VertexAttribPointer(
-                                attrib+layoutAttrib.location+i, 
-                                typeDescriptor.count, 
-                                typeDescriptor.type, 
-                                layoutAttrib.normalized, 
+                        if(field.GetType().IsValueType)
+                            AttachAttribs(
+                                field.FieldType, 
+                                vbo, 
+                                attrib+layoutAttrib.location, 
+                                layoutAttrib.normalized,
                                 stride, 
-                                offset + Marshal.OffsetOf(T,field.Name).ToInt32() + Marshal.SizeOf(T)*i/typeDescriptor.attribCount
+                                offset+Marshal.OffsetOf(T,field.Name).ToInt32()
                             );
+                        else
+                        {
+                            //ignore fields without layout attribute for now
+                            //probably would be a good idea to log this or something (TODO)
                         }
-                    }
-                    else if(field.GetType().IsValueType)
-                        AttachAttribs(
-                            field.FieldType, 
-                            vbo, 
-                            attrib+layoutAttrib.location, 
-                            stride, 
-                            offset+Marshal.OffsetOf(T,field.Name).ToInt32()
-                        );
-                    else
-                    {
-                        //ignore fields without layout attribute for now
-                        //probably would be a good idea to log this or something (TODO)
                     }
                 }
             }
