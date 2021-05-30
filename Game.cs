@@ -112,6 +112,8 @@ namespace SF3D
         private Model model;
         private Shader vShader, fShader;
         private ExampleShaderProgram program;
+        private Framebuffer fbo;
+        private Texture2D fboColor, fboDepth;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             UpdateFrequency = 60.0;
@@ -132,7 +134,7 @@ namespace SF3D
                     vPosition = (model*vec4(position,1.0)).xyz;
                     gl_Position = projection*view*model*vec4(position, 1.0);
                     vDiffuse = diffuse.rgb;
-                    vNormal = normal;
+                    vNormal = normal+0.25*position;
                 }
             ");
             fShader = new(ShaderType.FragmentShader, @"
@@ -157,6 +159,12 @@ namespace SF3D
                 }
             ");
             program = new ExampleShaderProgram(vShader, fShader);
+            fboColor = new Texture2D(size: new(1200,720));
+            fboDepth = new Texture2D(size: new(1200,720), format: PixelInternalFormat.Depth24Stencil8);
+            fbo = new Framebuffer(
+                (FramebufferAttachment.DepthStencilAttachment, fboDepth),
+                (FramebufferAttachment.ColorAttachment0, fboColor)
+            );
         }
 
         static void Main(string[] args)
@@ -203,10 +211,10 @@ namespace SF3D
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
-            GL.Viewport(0, 0, Size.X, Size.Y);
+            fbo.Bind(FramebufferTarget.DrawFramebuffer);
+            GL.Viewport(0, 0, 1200, 720);
             float aspectRatio = Size.X / Size.Y;
             Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.1f, 10f, out Matrix4 projection);
-
             GL.ClearColor(new Color4(252,136,231,255));
             GL.Enable(EnableCap.DepthTest);
             GL.Clear(ClearBufferMask.ColorBufferBit|ClearBufferMask.DepthBufferBit);
@@ -223,6 +231,10 @@ namespace SF3D
 
             model.Bind();
             model.Draw();
+
+            fbo.Bind(FramebufferTarget.ReadFramebuffer);
+            Framebuffer.Default.Bind(FramebufferTarget.DrawFramebuffer);
+            GL.BlitFramebuffer(0, 0, 1200, 720, 0, 0, Size.X, Size.Y, ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
 
             SwapBuffers();
             base.OnRenderFrame(e);
