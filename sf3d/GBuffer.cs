@@ -26,9 +26,11 @@ namespace SF3D
         public GBuffer(Vector2i size)
         {
             Framebuffer = new(
-                (ColorAttachment0, DiffuseMap  = new(Rgba8,            size)),
+                (ColorAttachment0, DiffuseMap  = new(Rgb8,             size)),
                 (ColorAttachment1, SpecularMap = new(Rgba8,            size)),
-                (ColorAttachment2, NormalMap   = new(Rgba8,            size)),
+                // For some reason specular lighting flickers if the bitdepth for normals is too low
+                // rgba8, rgb10 and r11g11b10f formats all experience flickering
+                (ColorAttachment2, NormalMap   = new(Rgb16,            size)),
                 (ColorAttachment3, PositionMap = new(Rgb32f,           size)),
                 (DepthAttachment,  ZBuffer     = new(DepthComponent24, size))
             );
