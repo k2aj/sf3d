@@ -13,42 +13,6 @@ using DGL.Model;
 
 namespace SF3D
 {
-    sealed class ExampleShaderProgram : ShaderProgram
-    {
-        private int uModel, uView, uProjection, uLightDirection, uLightColor, uCameraPosition, uAmbientLight, uNormalMatrix;
-        public ExampleShaderProgram(params Shader[] shaders) : base(shaders)
-        {
-            uModel = GetUniformLocation("model");
-            uView = GetUniformLocation("view");
-            uProjection = GetUniformLocation("projection");
-
-            uLightDirection = GetUniformLocation("lightDirection");
-            uLightColor = GetUniformLocation("lightColor");
-            uAmbientLight = GetUniformLocation("ambientLight");
-            uCameraPosition = GetUniformLocation("cameraPosition");
-            uNormalMatrix = GetUniformLocation("normalMatrix");
-        }
-        public Matrix4 Model 
-        {
-            set 
-            {
-                EnsureBound(); 
-                GL.UniformMatrix4(uModel, false, ref value);
-                var normalMatrix = new Matrix3(value);
-                normalMatrix.Invert();
-                normalMatrix.Transpose();
-                GL.UniformMatrix3(uNormalMatrix, false, ref normalMatrix);
-            }
-        }
-        public Matrix4 View {set {EnsureBound(); GL.UniformMatrix4(uView, false, ref value);}}
-        public Matrix4 Projection {set {EnsureBound(); GL.UniformMatrix4(uProjection, false, ref value);}}
-
-        public Vector3 LightDirection {set {EnsureBound(); GL.Uniform3(uLightDirection, value.Normalized());}}
-        public Vector3 LightColor {set {EnsureBound(); GL.Uniform3(uLightColor, value);}}
-        public Vector3 CameraPosition {set {EnsureBound(); GL.Uniform3(uCameraPosition, value);}}
-        public Vector3 AmbientLight {set {EnsureBound(); GL.Uniform3(uAmbientLight, value);}}
-    }
-
     class Game : GameWindow
     {
         private static Vector3[] positions = {
@@ -107,64 +71,18 @@ namespace SF3D
             9,10,11,
         };
 
-        private Camera camera = new(){Target = new(0.5f,0,0), Eye = new(0,0,-10)};
+        private Camera camera = new(){Target = new(0.5f,0,0), Eye = new(0,0,-3)};
         private const float cameraVelocity = 3;
         private Model model;
-        private Shader vShader, fShader;
-        private ExampleShaderProgram program;
-        private Framebuffer fbo;
-        private Texture2D fboColor, fboDepth;
+        private GBuffer gBuffer;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             UpdateFrequency = 60.0;
 
             model = new(indices.AsSpan(), positions.AsSpan(), normals.AsSpan(), diffuse.AsSpan());
 
-            vShader = new(ShaderType.VertexShader, @"
-                #version 330 core
-                layout(location=0) in vec3 position;
-                layout(location=2) in vec3 normal;
-                layout(location=3) in vec4 diffuse;
-
-                out vec3 vDiffuse, vNormal, vPosition;
-                uniform mat4 model, view, projection;
-
-                void main() 
-                {
-                    vPosition = (model*vec4(position,1.0)).xyz;
-                    gl_Position = projection*view*model*vec4(position, 1.0);
-                    vDiffuse = diffuse.rgb;
-                    vNormal = normal+0.25*position;
-                }
-            ");
-            fShader = new(ShaderType.FragmentShader, @"
-                #version 330 core
-
-                in vec3 vDiffuse, vNormal, vPosition;
-                uniform vec3 ambientLight, lightDirection, lightColor, cameraPosition;
-                uniform mat3 normalMatrix;
-                out vec3 fragColor;
-
-                void main() 
-                {
-                    vec3 norm = normalize(normalMatrix * vNormal);
-                    vec3 dirToCamera = normalize(cameraPosition - vPosition);
-                    
-                    vec3 diffuseLight = max(ambientLight, dot(-lightDirection,norm) * lightColor) ;
-
-                    vec3 reflectedDir = reflect(-lightDirection, norm);
-                    vec3 specularLight = pow(max(dot(reflectedDir, dirToCamera), 0), 32) * lightColor * 0.5;
-
-                    fragColor = diffuseLight * vDiffuse + specularLight * vDiffuse;
-                }
-            ");
-            program = new ExampleShaderProgram(vShader, fShader);
-            fboColor = new Texture2D(size: new(1200,720));
-            fboDepth = new Texture2D(size: new(1200,720), format: PixelInternalFormat.Depth24Stencil8);
-            fbo = new Framebuffer(
-                (FramebufferAttachment.DepthStencilAttachment, fboDepth),
-                (FramebufferAttachment.ColorAttachment0, fboColor)
-            );
+            gBuffer = new(size: new(1920,1080));
+            Shaders.Init();
         }
 
         static void Main(string[] args)
@@ -211,30 +129,51 @@ namespace SF3D
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
-            fbo.Bind(FramebufferTarget.DrawFramebuffer);
-            GL.Viewport(0, 0, 1200, 720);
-            float aspectRatio = Size.X / Size.Y;
-            Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.1f, 10f, out Matrix4 projection);
-            GL.ClearColor(new Color4(252,136,231,255));
+            gBuffer.Framebuffer.Bind();
+            GL.Viewport(0, 0, 1920, 1080);
             GL.Enable(EnableCap.DepthTest);
+
+            float aspectRatio = Size.X / Size.Y;
+            Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.1f, 20f, out Matrix4 projection);
+
+            GL.ClearColor(0,0,0,0);
             GL.Clear(ClearBufferMask.ColorBufferBit|ClearBufferMask.DepthBufferBit);
+            GL.ClearBuffer(ClearBuffer.Color, 0, new float[] {252/255f,136/255f,231/255f,1f}); //background color
+            GL.ClearBuffer(ClearBuffer.Color, 1, new float[] {0,0,0,0}); //specular color - doesn't matter for background
+            GL.ClearBuffer(ClearBuffer.Color, 2, new float[] {0.5f,0.5f,0.5f,0}); //normal vectors - should be 0,0,0 for background but we store them as (normal+1)/2, so 0.5,0.5,0.5 stands for 0,0,0
+            GL.ClearBuffer(ClearBuffer.Color, 3, new float[] {0,0,0,0}); //positions - don't matter for background
 
-            program.Bind();
-            program.Model = Matrix4.CreateScale(0.5f)*Matrix4.CreateFromAxisAngle(new(1,1,1), t)*Matrix4.CreateTranslation(0.5f,0,0);
-            program.View = camera.ViewMatrix;
-            program.Projection = projection;
-
-            program.AmbientLight = new(0.1f);
-            program.LightDirection = new(0,-10,0);
-            program.LightColor = new(1);
-            program.CameraPosition = camera.Eye;
+            Shaders.GBufferVVV.Bind();
+            Shaders.GBufferVVV.Model = Matrix4.CreateScale(0.5f)*Matrix4.CreateFromAxisAngle(new(1,1,1), t)*Matrix4.CreateTranslation(0.5f,0,0);
+            Shaders.GBufferVVV.View = camera.ViewMatrix;
+            Shaders.GBufferVVV.Projection = projection;
 
             model.Bind();
             model.Draw();
 
-            fbo.Bind(FramebufferTarget.ReadFramebuffer);
-            Framebuffer.Default.Bind(FramebufferTarget.DrawFramebuffer);
-            GL.BlitFramebuffer(0, 0, 1200, 720, 0, 0, Size.X, Size.Y, ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
+            Framebuffer.Default.Bind();
+            GL.Viewport(0,0,Size.X,Size.Y);
+            GL.Disable(EnableCap.DepthTest);
+
+            Texture2D.BindAll(
+                (TextureUnit.Texture0, gBuffer.DiffuseMap),
+                (TextureUnit.Texture1, gBuffer.SpecularMap),
+                (TextureUnit.Texture2, gBuffer.NormalMap),
+                (TextureUnit.Texture3, gBuffer.PositionMap)
+            );
+            
+            Shaders.DeferredSunlight.Bind();
+            Shaders.DeferredSunlight.DiffuseMap = TextureUnit.Texture0;
+            Shaders.DeferredSunlight.SpecularMap = TextureUnit.Texture1;
+            Shaders.DeferredSunlight.NormalMap = TextureUnit.Texture2;
+            Shaders.DeferredSunlight.PositionMap = TextureUnit.Texture3;
+            Shaders.DeferredSunlight.AmbientLightColor = new(0.1f);
+            Shaders.DeferredSunlight.LightDirection = new(0,-1,0);
+            Shaders.DeferredSunlight.LightColor = new(1);
+            Shaders.DeferredSunlight.CameraPosition = camera.Eye;
+            
+            VAO.Empty.Bind();
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
             SwapBuffers();
             base.OnRenderFrame(e);

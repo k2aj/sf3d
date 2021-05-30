@@ -204,6 +204,12 @@ namespace DGL {
             EnsureBound();
             GL.DrawElements(mode, count, indexType, first);
         }
+
+        private static VAO? empty;
+        public static VAO Empty {get {
+            if(empty is null) empty = new VAO();
+            return (VAO) empty;
+        }}
     }
 
     [AttributeUsage(AttributeTargets.Field)]

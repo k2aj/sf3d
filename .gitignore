@@ -3,3 +3,7 @@ bin/
 
 # IDE/editor files
 .vscode/
+
+# GLIntercept files
+OpenGL32.dll
+gliConfig.ini

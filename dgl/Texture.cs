@@ -20,6 +20,15 @@ namespace DGL
                 Allocate(s);
         }
         public void Bind() => GL.BindTexture(TextureTarget.Texture2D, handle);
+
+        public static void BindAll(params (TextureUnit target, Texture2D texture)[] textures) 
+        {
+            foreach(var t in textures)
+            {
+                GL.ActiveTexture(t.target);
+                t.texture.Bind();
+            }
+        }
         public Vector2i Size {get; private set;} = Vector2i.Zero;
         public PixelInternalFormat Format {get; private set;}
         internal bool IsBound() => GL.GetInteger(GetPName.TextureBinding2D) == handle;
@@ -49,7 +58,8 @@ namespace DGL
         }
 
         private static Dictionary<PixelInternalFormat,(PixelFormat format,PixelType type)> allocDefaults = new Dictionary<PixelInternalFormat,(PixelFormat format,PixelType type)>{
-            {PixelInternalFormat.Depth24Stencil8, (PixelFormat.DepthStencil,PixelType.UnsignedInt248)}
+            {PixelInternalFormat.Depth24Stencil8, (PixelFormat.DepthStencil,PixelType.UnsignedInt248)},
+            {PixelInternalFormat.DepthComponent24, (PixelFormat.DepthComponent,PixelType.UnsignedInt)}
         };
         public void Allocate(Vector2i size)
         {
