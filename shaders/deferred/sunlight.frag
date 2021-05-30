@@ -7,12 +7,25 @@ uniform sampler2D specularMap;
 uniform sampler2D normalMap;
 uniform sampler2D positionMap;
 
+uniform sampler2D shadowMap;
+uniform mat4 shadowView;
+uniform mat4 shadowProjection;
+uniform float shadowBias = 0.005;
+
 uniform vec3 lightDirection;
 uniform vec3 lightColor;
 uniform vec3 ambientLightColor;
 uniform vec3 cameraPosition;
 
 out vec3 fragColor;
+
+bool inShadow(vec3 position)
+{
+    vec4 lightSpacePosition = shadowProjection * shadowView * vec4(position, 1.0);
+    vec3 pos = lightSpacePosition.xyz / lightSpacePosition.w * 0.5 + 0.5;
+    float shadowDepth = texture(shadowMap, pos.xy).r;
+    return shadowDepth + shadowBias < pos.z;
+}
 
 vec3 phong(vec3 diffuseColor, vec3 specularColor, float specularExponent, vec3 normal, vec3 position)
 {
@@ -22,7 +35,10 @@ vec3 phong(vec3 diffuseColor, vec3 specularColor, float specularExponent, vec3 n
     vec3 reflectedDir = reflect(lightDirection, normal);
     vec3 specularComponent = pow(max(dot(reflectedDir, toCamera), 0), specularExponent) * specularColor;
 
-    return diffuseComponent + specularComponent;
+    if(inShadow(position))
+        return diffuseColor * ambientLightColor;
+    else
+        return diffuseComponent + specularComponent;
 }
 
 void main() 

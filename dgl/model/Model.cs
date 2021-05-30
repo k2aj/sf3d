@@ -7,7 +7,7 @@ namespace DGL.Model
     public sealed class Model : IDisposable
     {
         private VBO indices = new(), positions = new(), normals = new(), diffuse = new();
-        private VAO vao = new();
+        private VAO vao = new(), shadowVao = new();
         private int indexCount;
 
         public Model(Span<int> indices, Span<Vector3> positions, Span<Vector3> normals, Span<Color4> diffuse)
@@ -29,30 +29,36 @@ namespace DGL.Model
             this.diffuse.Bind();
             this.diffuse.Allocate(diffuse);
             vao.AttachAttribs<Color4>(this.diffuse, AttribLocations.Diffuse);
+
+            shadowVao.Bind();
+            shadowVao.AttachIndices(this.indices);
+            shadowVao.AttachAttribs<Vector3>(this.positions, AttribLocations.Position);
         }
 
-        public void Bind() => vao.Bind();
-        internal bool IsBound() => vao.IsBound();
-        public void EnsureBound() 
+        public void Bind(bool shadow = false) => 
+            (shadow ? shadowVao : vao).Bind();
+        internal bool IsBound(bool shadow = false) => (shadow ? shadowVao : vao).IsBound();
+        public void EnsureBound(bool shadow) 
         {
             #if DGL_LOG_MISSING_BIND
-            if(!IsBound())
+            if(!IsBound(shadow))
                 DebugUtils.LogUniqueStackTrace("WARNING: Model not bound.");
             #endif
             #if DGL_AUTOBIND
-                Bind();
+                Bind(shadow);
             #endif
         }
 
-        public void Draw()
+        public void Draw(bool shadow = false)
         {
-            EnsureBound();
-            vao.DrawIndexed(PrimitiveType.Triangles, 0, indexCount, DrawElementsType.UnsignedInt);
+            EnsureBound(shadow);
+            (shadow ? shadowVao : vao).DrawIndexed(PrimitiveType.Triangles, 0, indexCount, DrawElementsType.UnsignedInt);
         }
 
         public void Dispose()
         {
             vao.Dispose();
+            shadowVao.Dispose();
             indices.Dispose();
             positions.Dispose();
             normals.Dispose();

@@ -12,7 +12,7 @@ namespace SF3D
         /// <summary>
         ///  GBuffer-filling shader program. Diffuse color, specular color and normal vectors are stored in model vertices.
         /// </summary>
-        public static SceneShaderProgram GBufferVVV;
+        public static SceneShaderProgram GBufferVVV, Shadow;
         public static DeferredSunlightShaderProgram DeferredSunlight;
         public static IdentityEffect Identity;
 
@@ -21,6 +21,7 @@ namespace SF3D
             using(ShaderLoader loader = new())
             {
                 GBufferVVV = new(loader.Get("shaders/vvv/common.vert"), loader.Get("shaders/vvv/gbuffer.frag"));
+                Shadow = new(loader.Get("shaders/shadow.vert"), loader.Get("shaders/empty.frag"));
                 DeferredSunlight = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/deferred/sunlight.frag"));
                 Identity = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/postprocessing/identity.frag"));
             }
@@ -28,6 +29,7 @@ namespace SF3D
         public static void Dispose()
         {
             GBufferVVV.Dispose();
+            Shadow.Dispose();
             DeferredSunlight.Dispose();
             Identity.Dispose();
         }
@@ -66,16 +68,25 @@ namespace SF3D
 
     public sealed class DeferredSunlightShaderProgram : DeferredShaderProgram
     {
-        private int uLightDirection, uLightColor, uAmbientLightColor;
+        private int uLightDirection, uLightColor, uAmbientLightColor, uShadowMap, uShadowView, uShadowProjection, uShadowBias;
         public DeferredSunlightShaderProgram(params Shader[] shaders) : base(shaders)
         {
             uLightDirection = GetUniformLocation("lightDirection");
             uLightColor = GetUniformLocation("lightColor");
             uAmbientLightColor = GetUniformLocation("ambientLightColor");
+            uShadowMap = GetUniformLocation("shadowMap");
+            uShadowProjection = GetUniformLocation("shadowProjection");
+            uShadowView = GetUniformLocation("shadowView");
+            uShadowBias = GetUniformLocation("shadowBias");
         }
         public Vector3 LightDirection {set {EnsureBound(); GL.Uniform3(uLightDirection, value);}}
         public Vector3 LightColor {set {EnsureBound(); GL.Uniform3(uLightColor, value);}}
         public Vector3 AmbientLightColor {set {EnsureBound(); GL.Uniform3(uAmbientLightColor, value);}}
+
+        public TextureUnit ShadowMap {set {EnsureBound(); GL.Uniform1(uShadowMap, (int) value - (int) TextureUnit.Texture0);}}
+        public Matrix4 ShadowView {set {EnsureBound(); GL.UniformMatrix4(uShadowView, false, ref value);}}
+        public Matrix4 ShadowProjection {set {EnsureBound(); GL.UniformMatrix4(uShadowProjection, false, ref value);}}
+        public float ShadowBias {set {EnsureBound(); GL.Uniform1(uShadowBias, value);}}
     }
 
     public sealed class IdentityEffect : ShaderProgram
