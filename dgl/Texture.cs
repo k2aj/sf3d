@@ -21,12 +21,13 @@ namespace DGL
         }
         public void Bind() => GL.BindTexture(TextureTarget.Texture2D, handle);
 
-        public static void BindAll(params (TextureUnit target, Texture2D texture)[] textures) 
+        public static void BindAll(params (TextureUnit target, Texture2D texture, Sampler sampler)[] textures) 
         {
             foreach(var t in textures)
             {
                 GL.ActiveTexture(t.target);
                 t.texture.Bind();
+                t.sampler.Bind(t.target);
             }
         }
         public Vector2i Size {get; private set;} = Vector2i.Zero;
@@ -70,6 +71,31 @@ namespace DGL
         }
     }
 
+    public sealed class Sampler : IDisposable
+    {
+        private int handle;
+
+        public TextureMinFilter MinFilter {set => GL.SamplerParameter(handle, SamplerParameterName.TextureMinFilter, (int) value);}
+        public TextureMagFilter MagFilter {set => GL.SamplerParameter(handle, SamplerParameterName.TextureMagFilter, (int) value);}
+
+        public TextureWrapMode WrapS {set => GL.SamplerParameter(handle, SamplerParameterName.TextureWrapS, (int) value);}
+        public TextureWrapMode WrapT {set => GL.SamplerParameter(handle, SamplerParameterName.TextureWrapT, (int) value);}
+        public TextureWrapMode Wrap {set {WrapS = value; WrapT = value;}}
+
+        public Sampler() => handle = GL.GenSampler();
+
+        public void Bind(TextureUnit target) => GL.BindSampler((int)target, handle);
+
+        public void Dispose()
+        {
+            if(handle != 0)
+            {
+                GL.DeleteSampler(handle);
+                handle = 0;
+            }
+        }
+    }
+
     public sealed class Framebuffer : IDisposable
     {
         public static readonly Framebuffer Default = new Framebuffer(0);
@@ -85,10 +111,14 @@ namespace DGL
             var errorCode = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
             if(errorCode != FramebufferErrorCode.FramebufferComplete)
                 throw new ArgumentException($"Incomplete framebuffer: {errorCode}");
+
+            // At this point we know all attached textures have the same size,
+            // because otherwise this fbo would be incomplete and code above would throw
+            Size = attachments[0].texture.Size;
         }
         private Framebuffer(int handle) => this.handle = handle;
 
-        public Vector2i Size {get; private set;} = Vector2i.Zero;
+        public Vector2i Size {get; private set;}
 
         public void Bind(FramebufferTarget target = FramebufferTarget.DrawFramebuffer) => GL.BindFramebuffer(target,handle);
         internal bool IsBound(FramebufferTarget target)
