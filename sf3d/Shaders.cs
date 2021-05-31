@@ -15,6 +15,7 @@ namespace SF3D
         public static SceneShaderProgram GBufferVVV, Shadow;
         public static DeferredSunlightShaderProgram DeferredSunlight;
         public static IdentityEffect Identity;
+        public static ToneMappingEffect ToneMapping;
 
         public static void Init()
         {
@@ -24,6 +25,7 @@ namespace SF3D
                 Shadow = new(loader.Get("shaders/shadow.vert"), loader.Get("shaders/empty.frag"));
                 DeferredSunlight = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/deferred/sunlight.frag"));
                 Identity = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/postprocessing/identity.frag"));
+                ToneMapping = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/postprocessing/tone-mapping.frag"));
             }
         }
         public static void Dispose()
@@ -94,5 +96,17 @@ namespace SF3D
         private int uTex;
         public IdentityEffect(params Shader[] shaders) : base(shaders) => uTex = GetUniformLocation("tex");
         public TextureUnit Texture {set {EnsureBound(); GL.Uniform1(uTex, (int) value - (int) TextureUnit.Texture0);}}
+    }
+
+    public sealed class ToneMappingEffect : ShaderProgram
+    {
+        private int uTex, uExposure;
+        public ToneMappingEffect(params Shader[] shaders) : base(shaders)
+        {
+            uTex = GetUniformLocation("tex");
+            uExposure = GetUniformLocation("exposure");
+        }
+        public TextureUnit Texture {set {EnsureBound(); GL.Uniform1(uTex, (int) value - (int) TextureUnit.Texture0);}}
+        public float Exposure {set {EnsureBound(); GL.Uniform1(uExposure, value);}}
     }
 }

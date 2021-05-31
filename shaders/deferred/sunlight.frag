@@ -10,7 +10,7 @@ uniform sampler2D positionMap;
 uniform sampler2D shadowMap;
 uniform mat4 shadowView;
 uniform mat4 shadowProjection;
-uniform float shadowBias = 0.005;
+uniform float shadowBias = 0.01;
 
 uniform vec3 lightDirection;
 uniform vec3 lightColor;
@@ -19,12 +19,20 @@ uniform vec3 cameraPosition;
 
 out vec3 fragColor;
 
-bool inShadow(vec3 position)
+float inShadow(vec3 position)
 {
-    vec4 lightSpacePosition = shadowProjection * shadowView * vec4(position, 1.0);
-    vec3 pos = lightSpacePosition.xyz / lightSpacePosition.w * 0.5 + 0.5;
-    float shadowDepth = texture(shadowMap, pos.xy).r;
-    return shadowDepth + shadowBias < pos.z;
+    vec2 uvOffset = vec2(1.0)/textureSize(shadowMap,0);
+    float numInShadow = 0;
+
+    for(int x=-2; x<=2; ++x)
+        for(int y=-2; y<=2; ++y)
+        {
+            vec4 lightSpacePosition = shadowProjection * shadowView * vec4(position, 1.0);
+            vec3 pos = lightSpacePosition.xyz / lightSpacePosition.w * 0.5 + 0.5;
+            float shadowDepth = texture(shadowMap, pos.xy + uvOffset*vec2(x,y)).r;
+            numInShadow += ((shadowDepth + shadowBias < pos.z) ? 1.0 : 0.0);
+        }
+    return numInShadow/25.0;
 }
 
 vec3 phong(vec3 diffuseColor, vec3 specularColor, float specularExponent, vec3 normal, vec3 position)
@@ -33,12 +41,13 @@ vec3 phong(vec3 diffuseColor, vec3 specularColor, float specularExponent, vec3 n
 
     vec3 toCamera = normalize(cameraPosition - position);
     vec3 reflectedDir = reflect(lightDirection, normal);
-    vec3 specularComponent = pow(max(dot(reflectedDir, toCamera), 0), specularExponent) * specularColor;
+    vec3 specularComponent = pow(max(dot(reflectedDir, toCamera), 0), specularExponent) * lightColor * specularColor;
 
-    if(inShadow(position))
-        return diffuseColor * ambientLightColor;
-    else
-        return diffuseComponent + specularComponent;
+    return mix(
+        diffuseComponent + specularComponent, 
+        diffuseColor*ambientLightColor, 
+        inShadow(position)
+    );
 }
 
 void main() 
@@ -57,7 +66,7 @@ void main()
     float useLighting = dot(normal,normal); 
     fragColor = mix(
         diffuseColor, 
-        clamp(phong(diffuseColor,specularColor,specularExponent,normal,position),0.0,1.0), 
+        clamp(phong(diffuseColor,specularColor,specularExponent,normal,position),0.0,1000.0), 
         useLighting
     );
 }

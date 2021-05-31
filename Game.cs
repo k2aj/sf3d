@@ -1,6 +1,5 @@
 ﻿using System;
-using System.IO;
-using System.Runtime.InteropServices;
+using System.Collections.Generic;
 
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -13,8 +12,46 @@ using DGL.Model;
 
 namespace SF3D
 {
+    public static class RandomExtensions
+    {
+        public static float NextFloat(this Random random) => (float) random.NextDouble();
+        public static float NextFloat(this Random random, float min, float max) => random.NextFloat() * (max-min) + min;
+        public static Vector3 NextVector3(this Random random, float max) => new(random.NextFloat(-max,max), random.NextFloat(-max,max), random.NextFloat(-max,max));
+    }
     class Game : GameWindow
     {
+        class Tetragon
+        {
+            private float angularVelocity;
+            private float rotation = 0;
+            private Vector3 rotationAxis;
+
+            private Vector3 position;
+            private float scale;
+            private Scene.ObjectID id;
+            private Model model;
+
+            public Tetragon(Random rng, Model model) 
+            {
+                scale = rng.NextFloat() + 0.3f;
+                angularVelocity = rng.NextFloat(-0.5f,0.5f);
+                rotation = rng.NextFloat(-MathF.PI, MathF.PI);
+                rotationAxis = rng.NextVector3(1);
+                position = rng.NextVector3(7.5f);
+                this.model = model;
+            }
+            public void OnSpawned(Scene scene) => id = scene.Add(model, Matrix4.Identity);
+            public void Update(Scene scene, float dt)
+            {
+                rotation += angularVelocity * dt;
+                var modelMatrix = 
+                    Matrix4.CreateScale(scale) * 
+                    Matrix4.CreateFromAxisAngle(rotationAxis, rotation) *
+                    Matrix4.CreateTranslation(position);
+                scene.SetModelMatrix(id, modelMatrix);
+            }
+        }
+
         private static Vector3[] positions = {
             new( 0, -0.544f,  1.155f),
             new( 0,  1.088f,  0),
@@ -71,12 +108,17 @@ namespace SF3D
             9,10,11,
         };
 
+        private Scene scene = new();
         private Camera camera = new(){Target = new(0.5f,0,0), Eye = new(0,0,-3)};
         private const float cameraVelocity = 3;
         private Model model;
         private GBuffer gBuffer;
         private Framebuffer shadowFbo;
         private Texture2D shadowMap;
+
+        private Framebuffer hdrFbo;
+        private Texture2D hdr;
+        private List<Tetragon> tetragons = new();
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             UpdateFrequency = 60.0;
@@ -88,6 +130,18 @@ namespace SF3D
 
             shadowMap = new Texture2D(PixelInternalFormat.DepthComponent24, new(2048,2048));
             shadowFbo = new((FramebufferAttachment.DepthAttachment, shadowMap));
+
+            hdr = new Texture2D(PixelInternalFormat.Rgb16f, new(1920,1080));
+            hdrFbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, hdr));
+
+            var rng = new Random();
+            
+            for(int i=0; i<100; ++i) 
+            {
+                var t = new Tetragon(rng,model);
+                t.OnSpawned(scene);
+                tetragons.Add(t);
+            }
         }
 
         static void Main(string[] args)
@@ -129,23 +183,16 @@ namespace SF3D
             lookPitch = (float) Math.Clamp(lookPitch + mouseDelta.Y/100, -Math.PI/2.01, Math.PI/2.01);
             lookYaw += mouseDelta.X/100;
             camera.LookDir = Matrix3.CreateRotationY(lookYaw)*Matrix3.CreateRotationX(-lookPitch)*Vector3.UnitZ;
+
+            foreach(var t in tetragons)
+                t.Update(scene, dt);
+
             base.OnUpdateFrame(e);
         }
         protected override void OnResize(ResizeEventArgs e)
         {
             gBuffer.Size = e.Size;
             base.OnResize(e);
-        }
-
-        private void RenderScene(SceneShaderProgram program, bool shadow)
-        {
-            model.Bind();
-            
-            program.Model = Matrix4.CreateScale(1f)*Matrix4.CreateFromAxisAngle(new(1,-1,1), 1.3f*t+0.5f)*Matrix4.CreateTranslation(0.5f,-3,0);
-            model.Draw();
-
-            program.Model = Matrix4.CreateScale(0.5f)*Matrix4.CreateFromAxisAngle(new(1,1,1), t)*Matrix4.CreateTranslation(0.5f,0,0);
-            model.Draw();
         }
 
         protected override void OnRenderFrame(FrameEventArgs e)
@@ -168,31 +215,26 @@ namespace SF3D
             GL.ClearBuffer(ClearBuffer.Color, 2, new float[] {0.5f,0.5f,0.5f,0}); //normal vectors - should be 0,0,0 for background but we store them as (normal+1)/2, so 0.5,0.5,0.5 stands for 0,0,0
             GL.ClearBuffer(ClearBuffer.Color, 3, new float[] {0,0,0,0}); //positions - don't matter for background
 
-            Shaders.GBufferVVV.Bind();
-            Shaders.GBufferVVV.View = camera.ViewMatrix;
-            Shaders.GBufferVVV.Projection = projection;
-            RenderScene(Shaders.GBufferVVV, shadow: false);
+            scene.Render(camera.ViewMatrix, projection, shadow: false);
 
             shadowFbo.Bind();
             GL.Viewport(0, 0, 2048, 2048);
             GL.Clear(ClearBufferMask.DepthBufferBit);
-            
+            scene.Render(lightView, lightProjection, shadow: true);
 
-            Shaders.Shadow.Bind();
-            Shaders.Shadow.View = lightView;
-            Shaders.Shadow.Projection = lightProjection;
-            RenderScene(Shaders.Shadow, shadow: true);
-
+            //hdrFbo.Bind();
+            //GL.Viewport(0,0,1920,1080);
             Framebuffer.Default.Bind();
             GL.Viewport(0,0,Size.X,Size.Y);
-            GL.Disable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.DepthTest);            
 
             Texture2D.BindAll(
                 (TextureUnit.Texture0, gBuffer.DiffuseMap),
                 (TextureUnit.Texture1, gBuffer.SpecularMap),
                 (TextureUnit.Texture2, gBuffer.NormalMap),
                 (TextureUnit.Texture3, gBuffer.PositionMap),
-                (TextureUnit.Texture4, shadowMap)
+                (TextureUnit.Texture4, shadowMap),
+                (TextureUnit.Texture5, hdr)
             );
             
             Shaders.DeferredSunlight.Bind();
@@ -213,6 +255,13 @@ namespace SF3D
             
             VAO.Empty.Bind();
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+
+            /*Framebuffer.Default.Bind();
+            GL.Viewport(0,0,Size.X,Size.Y);
+            Shaders.ToneMapping.Bind();
+            Shaders.ToneMapping.Texture = TextureUnit.Texture5;
+            Shaders.ToneMapping.Exposure = 0.25f;
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);*/
 
             SwapBuffers();
             base.OnRenderFrame(e);
