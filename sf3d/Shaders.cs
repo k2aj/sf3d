@@ -14,7 +14,7 @@ namespace SF3D
         /// </summary>
         public static SceneShaderProgram GBufferVVV, Shadow;
         public static DeferredSunlightShaderProgram DeferredSunlight;
-        public static IdentityEffect Identity;
+        public static PostProcessingEffect Identity;
         public static ToneMappingEffect ToneMapping;
         public static FilterGreaterEffect FilterGreater;
         public static Kernel1DEffect Kernel1D;
@@ -95,51 +95,48 @@ namespace SF3D
         public float ShadowBias {set {EnsureBound(); GL.Uniform1(uShadowBias, value);}}
     }
 
-    public sealed class IdentityEffect : ShaderProgram
+    public class PostProcessingEffect : ShaderProgram
     {
         private int uTex;
-        public IdentityEffect(params Shader[] shaders) : base(shaders) => uTex = GetUniformLocation("tex");
+        public PostProcessingEffect(params Shader[] shaders) : base(shaders) => uTex = GetUniformLocation("tex");
+
+        public void Apply()
+        {
+            EnsureBound();
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+        }
         public TextureUnit Texture {set {EnsureBound(); GL.Uniform1(uTex, (int) value - (int) TextureUnit.Texture0);}}
     }
 
-    public sealed class ToneMappingEffect : ShaderProgram
+    public sealed class ToneMappingEffect : PostProcessingEffect
     {
-        private int uTex, uBloomMap, uExposure;
+        private int uBloomMap, uExposure;
         public ToneMappingEffect(params Shader[] shaders) : base(shaders)
         {
-            uTex = GetUniformLocation("tex");
             uExposure = GetUniformLocation("exposure");
             uBloomMap = GetUniformLocation("bloomMap");
         }
-        public TextureUnit Texture {set {EnsureBound(); GL.Uniform1(uTex, (int) value - (int) TextureUnit.Texture0);}}
         public TextureUnit BloomMap {set {EnsureBound(); GL.Uniform1(uBloomMap, (int) value - (int) TextureUnit.Texture0);}}
         public float Exposure {set {EnsureBound(); GL.Uniform1(uExposure, value);}}
     }
 
-    public sealed class FilterGreaterEffect : ShaderProgram
+    public sealed class FilterGreaterEffect : PostProcessingEffect
     {
-        private int uTex, uThreshold;
-        public FilterGreaterEffect(params Shader[] shaders) : base(shaders)
-        {
-            uTex = GetUniformLocation("tex");
-            uThreshold = GetUniformLocation("threshold");
-        }
-        public TextureUnit Texture {set {EnsureBound(); GL.Uniform1(uTex, (int) value - (int) TextureUnit.Texture0);}}
+        private int uThreshold;
+        public FilterGreaterEffect(params Shader[] shaders) : base(shaders) => uThreshold = GetUniformLocation("threshold");
         public float Threshold {set {EnsureBound(); GL.Uniform1(uThreshold, value);}}
     }
 
-    public sealed class Kernel1DEffect : ShaderProgram
+    public sealed class Kernel1DEffect : PostProcessingEffect
     {
-        private int uTex, uKernel, uKernelLength, uKernelStep, uKernelOffset;
+        private int uKernel, uKernelLength, uKernelStep, uKernelOffset;
         public Kernel1DEffect(params Shader[] shaders) : base(shaders)
         {
-            uTex = GetUniformLocation("tex");
             uKernel = GetUniformLocation("kernel");
             uKernelLength = GetUniformLocation("kernelLength");
             uKernelOffset = GetUniformLocation("kernelOffset");
             uKernelStep = GetUniformLocation("kernelStep");
         }
-        public TextureUnit Texture {set {EnsureBound(); GL.Uniform1(uTex, (int) value - (int) TextureUnit.Texture0);}}
         public float[] Kernel {set {EnsureBound(); GL.Uniform1(uKernel, value.Length, value); GL.Uniform1(uKernelLength, value.Length);}}
         public Vector2 KernelStep {set {EnsureBound(); GL.Uniform2(uKernelStep, value);}}
         public Vector2 KernelOffset {set {EnsureBound(); GL.Uniform2(uKernelOffset, value);}}

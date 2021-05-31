@@ -1,0 +1,2 @@
+#!/bin/sh
+dotnet build && prime-run ./bin/Debug/net5.0/sf3d

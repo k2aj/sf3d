@@ -270,7 +270,7 @@ namespace SF3D
             Shaders.FilterGreater.Bind();
             Shaders.FilterGreater.Threshold = 1.0f;
             Shaders.FilterGreater.Texture = TextureUnit.Texture5;
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+            Shaders.FilterGreater.Apply();
 
             Shaders.Kernel1D.Bind();
             Shaders.Kernel1D.Kernel = KernelEffects.CreateGaussian1D(length: 12, sd: 4);
@@ -279,12 +279,12 @@ namespace SF3D
                 bloomFbo2.Bind();
                 Shaders.Kernel1D.Texture = TextureUnit.Texture6;
                 Shaders.Kernel1D.KernelStep = Vector2.UnitX;
-                GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+                Shaders.Kernel1D.Apply();
 
                 bloomFbo1.Bind();
                 Shaders.Kernel1D.Texture = TextureUnit.Texture7;
                 Shaders.Kernel1D.KernelStep = Vector2.UnitY;
-                GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+                Shaders.Kernel1D.Apply();
             }
 
             Framebuffer.Default.Bind();
@@ -293,7 +293,7 @@ namespace SF3D
             Shaders.ToneMapping.Texture = TextureUnit.Texture5;
             Shaders.ToneMapping.BloomMap = TextureUnit.Texture6;
             Shaders.ToneMapping.Exposure = 0.25f;
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+            Shaders.ToneMapping.Apply();
 
             SwapBuffers();
             base.OnRenderFrame(e);
