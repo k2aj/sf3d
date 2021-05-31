@@ -3,14 +3,15 @@
 in vec2 uv;
 
 uniform sampler2D tex;
-uniform float exposure = 1.0;
+uniform sampler2D bloomMap;
+uniform float exposure;
 
 out vec3 fColor;
 
 void main()
 {
-    const float r_gamma = 1.0/2.2;
-    vec3 color = texture(tex, uv).rgb;
-    fColor = pow(vec3(1.0) - exp(-color*exposure), vec3(r_gamma));
-    //fColor = color/(vec3(1.0)+color);
+    vec3 color = texture(tex, uv).rgb + texture(bloomMap, uv).rgb;
+    //fColor = vec3(1.0) - exp(-color*exposure);
+    //fColor = pow(color / (vec3(1.0) + color), vec3(0.75));
+    fColor = color / (vec3(1.0) + color);
 }

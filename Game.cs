@@ -107,17 +107,17 @@ namespace SF3D
             6,7,8,
             9,10,11,
         };
+        private static float[] gaussianBlurKernel = {
+            0.055f, 0.244f, 0.402f, 0.244f, 0.055f
+        };
 
         private Scene scene = new();
         private Camera camera = new(){Target = new(0.5f,0,0), Eye = new(0,0,-3)};
         private const float cameraVelocity = 3;
         private Model model;
         private GBuffer gBuffer;
-        private Framebuffer shadowFbo;
-        private Texture2D shadowMap;
-
-        private Framebuffer hdrFbo;
-        private Texture2D hdr;
+        private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
+        private Texture2D shadowMap, hdr, bloom1, bloom2;
         private List<Tetragon> tetragons = new();
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
@@ -133,6 +133,12 @@ namespace SF3D
 
             hdr = new Texture2D(PixelInternalFormat.Rgb16f, new(1920,1080));
             hdrFbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, hdr));
+
+            bloom1 = new Texture2D(PixelInternalFormat.Rgb16f, new(1920,1080));
+            bloomFbo1 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom1));
+
+            bloom2 = new Texture2D(PixelInternalFormat.Rgb16f, new(1920,1080));
+            bloomFbo2 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom2));
 
             var rng = new Random();
             
@@ -200,9 +206,10 @@ namespace SF3D
             gBuffer.Framebuffer.Bind();
             GL.Viewport(0, 0, gBuffer.Size.X, gBuffer.Size.Y);
             GL.Enable(EnableCap.DepthTest);
+            GL.Disable(EnableCap.Blend);
 
             float aspectRatio = Size.X / Size.Y;
-            Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.1f, 20f, out Matrix4 projection);
+            Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.25f, 40f, out Matrix4 projection);
 
             var lightPos = new Vector3(0,10,0);
             var lightProjection = Matrix4.CreateOrthographicOffCenter(-10, 10, -10, 10, 2, 20);
@@ -222,10 +229,8 @@ namespace SF3D
             GL.Clear(ClearBufferMask.DepthBufferBit);
             scene.Render(lightView, lightProjection, shadow: true);
 
-            //hdrFbo.Bind();
-            //GL.Viewport(0,0,1920,1080);
-            Framebuffer.Default.Bind();
-            GL.Viewport(0,0,Size.X,Size.Y);
+            hdrFbo.Bind();
+            GL.Viewport(0,0,1920,1080);
             GL.Disable(EnableCap.DepthTest);            
 
             Texture2D.BindAll(
@@ -234,7 +239,9 @@ namespace SF3D
                 (TextureUnit.Texture2, gBuffer.NormalMap),
                 (TextureUnit.Texture3, gBuffer.PositionMap),
                 (TextureUnit.Texture4, shadowMap),
-                (TextureUnit.Texture5, hdr)
+                (TextureUnit.Texture5, hdr),
+                (TextureUnit.Texture6, bloom1),
+                (TextureUnit.Texture7, bloom2)
             );
             
             Shaders.DeferredSunlight.Bind();
@@ -244,9 +251,9 @@ namespace SF3D
             Shaders.DeferredSunlight.NormalMap = TextureUnit.Texture2;
             Shaders.DeferredSunlight.PositionMap = TextureUnit.Texture3;
 
-            Shaders.DeferredSunlight.AmbientLightColor = new(0.1f);
+            Shaders.DeferredSunlight.AmbientLightColor = new(0.5f);
             Shaders.DeferredSunlight.LightDirection = new(0,-1,0);
-            Shaders.DeferredSunlight.LightColor = new(1);
+            Shaders.DeferredSunlight.LightColor = new(10);
             Shaders.DeferredSunlight.CameraPosition = camera.Eye;
 
             Shaders.DeferredSunlight.ShadowMap = TextureUnit.Texture4;
@@ -256,12 +263,36 @@ namespace SF3D
             VAO.Empty.Bind();
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
-            /*Framebuffer.Default.Bind();
-            GL.Viewport(0,0,Size.X,Size.Y);
+            bloomFbo1.Bind();
+            Shaders.FilterGreater.Bind();
+            Shaders.FilterGreater.Threshold = 1.0f;
+            Shaders.FilterGreater.Texture = TextureUnit.Texture5;
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+
+            Shaders.Kernel1D.Bind();
+            Shaders.Kernel1D.Kernel = new float[]{0.05f, 0.24f, 0.42f, 0.24f, 0.05f};
+            for(int i=0; i<5; ++i)
+            {
+                bloomFbo2.Bind();
+                Shaders.Kernel1D.Texture = TextureUnit.Texture6;
+                Shaders.Kernel1D.KernelStep = new Vector2(.5f/1920,0);
+                Shaders.Kernel1D.KernelOffset = new Vector2(-1f/1920,0);
+                GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+
+                bloomFbo1.Bind();
+                Shaders.Kernel1D.Texture = TextureUnit.Texture7;
+                Shaders.Kernel1D.KernelStep = new Vector2(0,.5f/1080);
+                Shaders.Kernel1D.KernelOffset = new Vector2(0,-1f/1080);
+                GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+            }
+
+            Framebuffer.Default.Bind();
+            GL.Viewport(0,0,1920,1080);
             Shaders.ToneMapping.Bind();
             Shaders.ToneMapping.Texture = TextureUnit.Texture5;
+            Shaders.ToneMapping.BloomMap = TextureUnit.Texture6;
             Shaders.ToneMapping.Exposure = 0.25f;
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);*/
+            GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
             SwapBuffers();
             base.OnRenderFrame(e);

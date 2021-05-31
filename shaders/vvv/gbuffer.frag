@@ -14,7 +14,7 @@ void main()
 {
     fDiffuse = vDiffuse;
     //fSpecular = vSpecular;
-    fSpecular = vec4(1.0, 1.0, 1.0, 0.25);
+    fSpecular = vec4(1.0, 1.0, 1.0, 0.5);
     fNormal = normalize(vNormal)*0.5+0.5;
     fPosition = vPosition;
 }
