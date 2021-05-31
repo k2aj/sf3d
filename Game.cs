@@ -170,6 +170,7 @@ namespace SF3D
             if(input.IsKeyDown(Keys.Escape))
                 Close();
 
+            // Naive implementation of flying FPS-style camera
             Vector3 cameraForward = new(camera.LookDir.X, 0, camera.LookDir.Z);
             cameraForward.Normalize();
             Vector3 cameraRight = Matrix3.CreateRotationY(MathF.PI/2) * cameraForward;
@@ -188,6 +189,8 @@ namespace SF3D
 
             var mouseDelta = MouseState.Position - MouseState.PreviousPosition;
             mouseDelta = mouseDelta / (float)Math.Clamp(e.Time, 1/100f, 1/5f) / 60;
+            // We clamp to +-Math.PI/2.01 instead of +-Math.PI/2 to prevent the user from looking straight up/straight down,
+            // because it breaks Camera's view matrix because of some issues with Matrix4.LookAt
             lookPitch = (float) Math.Clamp(lookPitch + mouseDelta.Y/100, -Math.PI/2.01, Math.PI/2.01);
             lookYaw += mouseDelta.X/100;
             camera.LookDir = Matrix3.CreateRotationY(lookYaw)*Matrix3.CreateRotationX(-lookPitch)*Vector3.UnitZ;
@@ -213,12 +216,13 @@ namespace SF3D
             float aspectRatio = Size.X / Size.Y;
             Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.25f, 40f, out Matrix4 projection);
 
+            // Matrices for shadow mapping
             var lightPos = new Vector3(0,10,0);
             var lightProjection = Matrix4.CreateOrthographicOffCenter(-10, 10, -10, 10, 2, 20);
             var lightView = Matrix4.LookAt(lightPos, new Vector3(0.5f,0,0), Vector3.UnitY);
 
-            GL.ClearColor(0,0,0,0);
-            GL.Clear(ClearBufferMask.ColorBufferBit|ClearBufferMask.DepthBufferBit);
+            // Render scene to gbuffer
+            GL.Clear(ClearBufferMask.DepthBufferBit);
             GL.ClearBuffer(ClearBuffer.Color, 0, new float[] {135/255f,162/255f,237/255f,1f}); //background color
             GL.ClearBuffer(ClearBuffer.Color, 1, new float[] {0,0,0,0}); //specular color - doesn't matter for background
             GL.ClearBuffer(ClearBuffer.Color, 2, new float[] {0.5f,0.5f,0.5f,0}); //normal vectors - should be 0,0,0 for background but we store them as (normal+1)/2, so 0.5,0.5,0.5 stands for 0,0,0
@@ -226,11 +230,13 @@ namespace SF3D
 
             scene.Render(camera.ViewMatrix, projection, shadow: false);
 
+            // Render scene to shadow map
             shadowFbo.Bind();
             GL.Viewport(0, 0, shadowFbo.Size.X, shadowFbo.Size.Y);
             GL.Clear(ClearBufferMask.DepthBufferBit);
             scene.Render(lightView, lightProjection, shadow: true);
 
+            // Apply lighting
             hdrFbo.Bind();
             GL.Viewport(0,0,hdrFbo.Size.X,hdrFbo.Size.Y);
             GL.Disable(EnableCap.DepthTest);            
@@ -265,6 +271,7 @@ namespace SF3D
             VAO.Empty.Bind();
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
 
+            // Extract bright fragments into bloomFbo1
             bloomFbo1.Bind();
             GL.Viewport(0, 0, bloomFbo1.Size.X, bloomFbo1.Size.Y);
             Shaders.FilterGreater.Bind();
@@ -272,6 +279,8 @@ namespace SF3D
             Shaders.FilterGreater.Texture = TextureUnit.Texture5;
             Shaders.FilterGreater.Apply();
 
+            // Run multiple alternating passes of horizontal & vertical gaussian blur on the bloom map
+            //(ping pong between bloomFbo1 and bloomFbo2)
             Shaders.Kernel1D.Bind();
             Shaders.Kernel1D.Kernel = KernelEffects.CreateGaussian1D(length: 12, sd: 4);
             for(int i=0; i<4; ++i)
@@ -287,6 +296,7 @@ namespace SF3D
                 Shaders.Kernel1D.Apply();
             }
 
+            // Run postprocessing (tone mapping & apply bloom)
             Framebuffer.Default.Bind();
             GL.Viewport(0,0,Size.X,Size.Y);
             Shaders.ToneMapping.Bind();
