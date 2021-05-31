@@ -32,6 +32,7 @@ namespace DGL.Model
 
             shadowVao.Bind();
             shadowVao.AttachIndices(this.indices);
+            this.positions.Bind();
             shadowVao.AttachAttribs<Vector3>(this.positions, AttribLocations.Position);
         }
 

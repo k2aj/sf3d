@@ -23,19 +23,55 @@ namespace SF3D
         public Texture2D PositionMap {get; private set;}
         public Texture2D ZBuffer {get; private set;}
 
-        public GBuffer(Vector2i size)
+        private Vector2i size;
+        public Vector2i Size
         {
-            Framebuffer = new(
-                (ColorAttachment0, DiffuseMap  = new(Rgb8,             size)),
-                (ColorAttachment1, SpecularMap = new(Rgba8,            size)),
-                // For some reason specular lighting flickers if the bitdepth for normals is too low
-                // rgba8, rgb10 and r11g11b10f formats all experience flickering
-                (ColorAttachment2, NormalMap   = new(Rgb16,            size)),
-                (ColorAttachment3, PositionMap = new(Rgb32f,           size)),
-                (DepthAttachment,  ZBuffer     = new(DepthComponent24, size))
+            get => size;
+            set
+            {
+                //Resize all textures and recreate framebuffer
+                size = value;
+                Framebuffer.Dispose();
+                DiffuseMap.Bind();
+                DiffuseMap.Allocate(value);
+                SpecularMap.Bind();
+                SpecularMap.Allocate(value);
+                NormalMap.Bind();
+                NormalMap.Allocate(value);
+                PositionMap.Bind();
+                PositionMap.Allocate(value);
+                ZBuffer.Bind();
+                ZBuffer.Allocate(value);
+                Framebuffer = CreateFramebuffer();
+            }
+        }
+
+        private Framebuffer CreateFramebuffer()
+        {
+            var result = new Framebuffer(
+                (ColorAttachment0, DiffuseMap),
+                (ColorAttachment1, SpecularMap),
+                (ColorAttachment2, NormalMap),
+                (ColorAttachment3, PositionMap),
+                (DepthAttachment,  ZBuffer)
             );
             GL.DrawBuffers(4, new DrawBuffersEnum[]{DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2, DrawBuffersEnum.ColorAttachment3});
+            return result;
         }
+
+        public GBuffer(Vector2i size)
+        {
+            DiffuseMap  = new(Rgb8, size);
+            SpecularMap = new(Rgba8, size);
+            // For some reason specular lighting flickers if the bitdepth for normals is too low
+            // rgba8, rgb10 and r11g11b10f formats all experience flickering
+            NormalMap = new(Rgb16, size);
+            PositionMap = new(Rgb32f, size);
+            ZBuffer = new(DepthComponent24, size);
+            Framebuffer = CreateFramebuffer();
+        }
+
+    
 
         public void Dispose()
         {   

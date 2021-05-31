@@ -131,6 +131,11 @@ namespace SF3D
             camera.LookDir = Matrix3.CreateRotationY(lookYaw)*Matrix3.CreateRotationX(-lookPitch)*Vector3.UnitZ;
             base.OnUpdateFrame(e);
         }
+        protected override void OnResize(ResizeEventArgs e)
+        {
+            gBuffer.Size = e.Size;
+            base.OnResize(e);
+        }
 
         private void RenderScene(SceneShaderProgram program, bool shadow)
         {
@@ -146,7 +151,7 @@ namespace SF3D
         protected override void OnRenderFrame(FrameEventArgs e)
         {
             gBuffer.Framebuffer.Bind();
-            GL.Viewport(0, 0, 1920, 1080);
+            GL.Viewport(0, 0, gBuffer.Size.X, gBuffer.Size.Y);
             GL.Enable(EnableCap.DepthTest);
 
             float aspectRatio = Size.X / Size.Y;
@@ -158,7 +163,7 @@ namespace SF3D
 
             GL.ClearColor(0,0,0,0);
             GL.Clear(ClearBufferMask.ColorBufferBit|ClearBufferMask.DepthBufferBit);
-            GL.ClearBuffer(ClearBuffer.Color, 0, new float[] {252/255f,136/255f,231/255f,1f}); //background color
+            GL.ClearBuffer(ClearBuffer.Color, 0, new float[] {135/255f,162/255f,237/255f,1f}); //background color
             GL.ClearBuffer(ClearBuffer.Color, 1, new float[] {0,0,0,0}); //specular color - doesn't matter for background
             GL.ClearBuffer(ClearBuffer.Color, 2, new float[] {0.5f,0.5f,0.5f,0}); //normal vectors - should be 0,0,0 for background but we store them as (normal+1)/2, so 0.5,0.5,0.5 stands for 0,0,0
             GL.ClearBuffer(ClearBuffer.Color, 3, new float[] {0,0,0,0}); //positions - don't matter for background
@@ -191,7 +196,7 @@ namespace SF3D
             );
             
             Shaders.DeferredSunlight.Bind();
-            
+
             Shaders.DeferredSunlight.DiffuseMap = TextureUnit.Texture0;
             Shaders.DeferredSunlight.SpecularMap = TextureUnit.Texture1;
             Shaders.DeferredSunlight.NormalMap = TextureUnit.Texture2;
