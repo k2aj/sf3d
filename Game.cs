@@ -120,6 +120,11 @@ namespace SF3D
         private List<Tetragon> tetragons = new();
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
+            unsafe 
+            {
+                // Hide cursor because we're using a FPS-style camera
+                GLFW.SetInputMode(WindowPtr, CursorStateAttribute.Cursor, CursorModeValue.CursorDisabled);
+            }
             UpdateFrequency = 60.0;
 
             model = new(indices.AsSpan(), positions.AsSpan(), normals.AsSpan(), diffuse.AsSpan());
