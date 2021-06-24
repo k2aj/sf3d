@@ -270,8 +270,7 @@ namespace SF3D
             Shaders.DeferredSunlight.CameraPosition = camera.Eye;
 
             Shaders.DeferredSunlight.ShadowMap = TextureUnit.Texture4;
-            Shaders.DeferredSunlight.ShadowView = lightView;
-            Shaders.DeferredSunlight.ShadowProjection = lightProjection;
+            Shaders.DeferredSunlight.ShadowViewProjection = lightView*lightProjection;
             
             VAO.Empty.Bind();
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);

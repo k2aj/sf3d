@@ -21,15 +21,17 @@ namespace SF3D
 
         public static void Init()
         {
-            using(ShaderLoader loader = new())
+            using(SF3DShaderLoader loader = new())
             {
+
+
                 GBufferVVV = new(loader.Get("shaders/vvv/common.vert"), loader.Get("shaders/vvv/gbuffer.frag"));
                 Shadow = new(loader.Get("shaders/shadow.vert"), loader.Get("shaders/empty.frag"));
-                DeferredSunlight = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/deferred/sunlight.frag"));
-                Identity = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/postprocessing/identity.frag"));
-                ToneMapping = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/postprocessing/tone-mapping.frag"));
-                FilterGreater = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/postprocessing/filter-greater.frag"));
-                Kernel1D = new(loader.Get("shaders/postprocessing/base.vert"), loader.Get("shaders/postprocessing/kernel1d.frag"));
+                DeferredSunlight = new(loader.GetDeferred(type: "directional", brdf: "blinn-phong", shadows: "pcf", ambientLighting: true));
+                Identity = new(loader.GetPostProcessing("identity"));
+                ToneMapping = new(loader.GetPostProcessing("tone-mapping"));
+                FilterGreater = new(loader.GetPostProcessing("filter-greater"));
+                Kernel1D = new(loader.GetPostProcessing("kernel1d"));
             }
         }
         public static void Dispose()
@@ -74,15 +76,14 @@ namespace SF3D
 
     public sealed class DeferredSunlightShaderProgram : DeferredShaderProgram
     {
-        private int uLightDirection, uLightColor, uAmbientLightColor, uShadowMap, uShadowView, uShadowProjection, uShadowBias;
+        private int uLightDirection, uLightColor, uAmbientLightColor, uShadowMap, uShadowViewProjection, uShadowBias;
         public DeferredSunlightShaderProgram(params Shader[] shaders) : base(shaders)
         {
             uLightDirection = GetUniformLocation("lightDirection");
             uLightColor = GetUniformLocation("lightColor");
             uAmbientLightColor = GetUniformLocation("ambientLightColor");
             uShadowMap = GetUniformLocation("shadowMap");
-            uShadowProjection = GetUniformLocation("shadowProjection");
-            uShadowView = GetUniformLocation("shadowView");
+            uShadowViewProjection = GetUniformLocation("shadowViewProjection");
             uShadowBias = GetUniformLocation("shadowBias");
         }
         public Vector3 LightDirection {set {EnsureBound(); GL.Uniform3(uLightDirection, value);}}
@@ -90,8 +91,7 @@ namespace SF3D
         public Vector3 AmbientLightColor {set {EnsureBound(); GL.Uniform3(uAmbientLightColor, value);}}
 
         public TextureUnit ShadowMap {set {EnsureBound(); GL.Uniform1(uShadowMap, (int) value - (int) TextureUnit.Texture0);}}
-        public Matrix4 ShadowView {set {EnsureBound(); GL.UniformMatrix4(uShadowView, false, ref value);}}
-        public Matrix4 ShadowProjection {set {EnsureBound(); GL.UniformMatrix4(uShadowProjection, false, ref value);}}
+        public Matrix4 ShadowViewProjection {set {EnsureBound(); GL.UniformMatrix4(uShadowViewProjection, false, ref value);}}
         public float ShadowBias {set {EnsureBound(); GL.Uniform1(uShadowBias, value);}}
     }
 
@@ -140,5 +140,30 @@ namespace SF3D
         public float[] Kernel {set {EnsureBound(); GL.Uniform1(uKernel, value.Length, value); GL.Uniform1(uKernelLength, value.Length);}}
         public Vector2 KernelStep {set {EnsureBound(); GL.Uniform2(uKernelStep, value);}}
         public Vector2 KernelOffset {set {EnsureBound(); GL.Uniform2(uKernelOffset, value);}}
+    }
+
+    public sealed class SF3DShaderLoader : ShaderLoader
+    {
+        public Shader[] GetPostProcessing(string name) => new Shader[]{
+            Get("shaders/postprocessing/base.vert"),
+            Get($"shaders/postprocessing/{name}.frag")
+        };
+
+        /// <summary>
+        /// Creates shaders for a deferred shading program.
+        /// </summary>
+        /// <param name="type">Type of the light source (directional).</param>
+        /// <param name="brdf">BRDF function being used (phong/blinn-phong).</param>
+        /// <param name="shadows">Shadow algorithm being used (pcf/none).</param>
+        /// <param name="ambientLighting">Whether ambient lighting is enabled or disabled.</param>
+        /// <returns></returns>
+        public Shader[] GetDeferred(string type, string brdf, string shadows, bool ambientLighting = false) => new Shader[]{
+            Get($"shaders/deferred/{type}.vert"),
+            Get("shaders/deferred/base.frag"),
+            Get($"shaders/deferred/{type}.frag"),
+            Get($"shaders/brdf/{brdf}.frag"),
+            Get($"shaders/shadow/{shadows}.frag"),
+            Get($"shaders/deferred/ambient-{(ambientLighting ? "enabled" : "disabled")}.frag")
+        };
     }
 }

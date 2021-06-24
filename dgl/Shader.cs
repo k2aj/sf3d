@@ -86,7 +86,7 @@ namespace DGL
         }
     }
 
-    public sealed class ShaderLoader : IDisposable
+    public class ShaderLoader : IDisposable
     {
         private Dictionary<string,Shader> shaders = new();
 
