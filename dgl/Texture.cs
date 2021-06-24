@@ -60,7 +60,8 @@ namespace DGL
 
         private static Dictionary<PixelInternalFormat,(PixelFormat format,PixelType type)> allocDefaults = new Dictionary<PixelInternalFormat,(PixelFormat format,PixelType type)>{
             {PixelInternalFormat.Depth24Stencil8, (PixelFormat.DepthStencil,PixelType.UnsignedInt248)},
-            {PixelInternalFormat.DepthComponent24, (PixelFormat.DepthComponent,PixelType.UnsignedInt)}
+            {PixelInternalFormat.DepthComponent24, (PixelFormat.DepthComponent,PixelType.UnsignedInt)},
+            {PixelInternalFormat.DepthComponent32, (PixelFormat.DepthComponent,PixelType.UnsignedInt)}
         };
         public void Allocate(Vector2i size)
         {

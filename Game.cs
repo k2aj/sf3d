@@ -132,7 +132,7 @@ namespace SF3D
             gBuffer = new(size: new(1920,1080));
             Shaders.Init();
 
-            shadowMap = new Texture2D(PixelInternalFormat.DepthComponent24, new(2048,2048));
+            shadowMap = new Texture2D(PixelInternalFormat.DepthComponent32, new(2048,2048));
             shadowFbo = new((FramebufferAttachment.DepthAttachment, shadowMap));
 
             hdr = new Texture2D(PixelInternalFormat.Rgb16f, new(1920,1080));
