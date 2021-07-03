@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <WarningsAsErrors>Nullable</WarningsAsErrors>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(configuration)' == 'Debug' ">
+    <!-- Only enable DGL debug features in debug mode -->
     <DefineConstants>DGL_AUTOBIND;DGL_LOG_MISSING_BIND</DefineConstants>
     <GenerateDocumentationFiles>true</GenerateDocumentationFiles>
   </PropertyGroup>
