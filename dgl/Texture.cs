@@ -2,6 +2,10 @@ using System;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
+
+// This is only used for loading images
+using System.Drawing;
+
 namespace DGL 
 {
     public sealed class Texture2D : IDisposable
@@ -69,6 +73,16 @@ namespace DGL
             var allocVars = allocDefaults.GetValueOrDefault(Format, (format: PixelFormat.Rgba, type: PixelType.Float));
             GL.TexImage2D(TextureTarget.Texture2D, 0, Format, size.X, size.Y, 0, allocVars.format, allocVars.type, new IntPtr(0));
             Size = size;
+        }
+
+        public void Upload(Bitmap bitmap, Vector2i offset)
+        {
+            EnsureBound();
+            var data = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            if(data.PixelFormat != System.Drawing.Imaging.PixelFormat.Format32bppArgb)
+                throw new FormatException($"Pixel format not supported: {data.PixelFormat}.");
+            GL.TexSubImage2D(TextureTarget.Texture2D, 0, offset.X, offset.Y, bitmap.Width, bitmap.Height, PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
+            bitmap.UnlockBits(data);
         }
     }
 
