@@ -2,6 +2,7 @@ using System;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
+using System.Linq;
 
 // This is only used for loading images
 using System.Drawing;
@@ -84,6 +85,13 @@ namespace DGL
             GL.TexSubImage2D(TextureTarget.Texture2D, 0, offset.X, offset.Y, bitmap.Width, bitmap.Height, PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
             bitmap.UnlockBits(data);
         }
+
+        public void Allocate(Bitmap bitmap)
+        {
+            EnsureBound();
+            Allocate(new Vector2i(bitmap.Width, bitmap.Height));
+            Upload(bitmap, Vector2i.Zero);
+        }
     }
 
     public sealed class Sampler : IDisposable
@@ -163,6 +171,91 @@ namespace DGL
                 GL.DeleteFramebuffer(handle);
                 handle = 0;
             }
+        }
+    }
+
+    public record AtlasSlice(Atlas Atlas, Box2i Area);
+
+    public sealed class Atlas : IDisposable {
+        public Texture2D Texture {get; private set;}
+        public Atlas(Vector2i initialSizeHint)
+        {
+            int log2InitialSize = CeilLog2(Math.Max(initialSizeHint.X, initialSizeHint.Y));
+            freeBlocks = new();
+            for(int i=0; i<=log2InitialSize; ++i)
+                freeBlocks.Add(new());
+
+            int size = 1<<log2InitialSize;
+            Texture = new(size: new Vector2i(size));
+
+            freeBlocks[log2InitialSize].Add(new(0,0,size,size));
+        }
+        public Atlas() : this(new(1024, 1024)) {}
+        private List<List<Box2i>> freeBlocks;
+
+        private void Expand() {
+            Texture2D newTexture = new Texture2D(size: Texture.Size*2); //double size of original texture
+            freeBlocks[^1].Add(new(Texture.Size.X,0,2*Texture.Size.X,Texture.Size.Y)); //add empty blocks corresponding to new free space
+            freeBlocks[^1].Add(new(0,Texture.Size.Y,Texture.Size.X,2*Texture.Size.Y)); 
+            freeBlocks[^1].Add(new(Texture.Size.X,Texture.Size.Y,2*Texture.Size.X,2*Texture.Size.Y));
+            freeBlocks.Add(new());
+
+            // copy contents from old texture to new texture via framebuffer blit (not the most elegant solution, I know, but I don't have time)
+            using(
+                Framebuffer srcFbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, Texture)),
+                            dstFbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, newTexture))
+            ) {
+                srcFbo.Bind(FramebufferTarget.ReadFramebuffer);
+                dstFbo.Bind(FramebufferTarget.DrawFramebuffer);
+                GL.BlitFramebuffer(0, 0, Texture.Size.X, Texture.Size.Y, 0, 0, Texture.Size.X, Texture.Size.Y, ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
+            }
+            Texture.Dispose();
+            Texture = newTexture;
+        }
+
+        public AtlasSlice Allocate(Vector2i size)
+        {
+            int log2BlockSize = CeilLog2(Math.Max(size.X, size.Y));
+            return new(this, Allocate(log2BlockSize));
+        }
+
+        public AtlasSlice Allocate(Bitmap bitmap)
+        {
+            var size = new Vector2i(bitmap.Width, bitmap.Height);
+            var block = Allocate(size).Area;
+            var topLeft = block.Min + (block.Size - size)/2;
+            Texture.Bind();
+            Texture.Upload(bitmap, topLeft);
+            return new(this, new(topLeft, topLeft+new Vector2i(bitmap.Width, bitmap.Height)));
+        }
+
+        private Box2i Allocate(int log2BlockSize)
+        {
+            if(freeBlocks.Count > log2BlockSize && freeBlocks[log2BlockSize].Any()) {
+                var result = freeBlocks[log2BlockSize].Last();
+                freeBlocks[log2BlockSize].RemoveAt(freeBlocks[log2BlockSize].Count-1);
+                return result;
+            } else {
+                // Ensure we have blocks big enough to subdivide
+                while(log2BlockSize+2 >= freeBlocks.Count) Expand();
+                // Allocate 2x bigger block than necessary and subdivide it into smaller blocks
+                var blk = Allocate(log2BlockSize+1);
+                freeBlocks[log2BlockSize].Add(new(blk.Min + new Vector2i(blk.Size.X/2,0), blk.Min + new Vector2i(blk.Size.X,blk.Size.Y/2)));
+                freeBlocks[log2BlockSize].Add(new(blk.Min + new Vector2i(0,blk.Size.Y/2), blk.Min + new Vector2i(blk.Size.X/2,blk.Size.Y)));
+                freeBlocks[log2BlockSize].Add(new(blk.Min+blk.HalfSize, blk.Max));
+                return new Box2i(blk.Min, blk.Min + blk.HalfSize);
+            }
+        }
+
+        public void Dispose() {
+            Texture.Dispose();
+        }
+
+        private static int CeilLog2(int n)
+        {
+            int r = Math.ILogB(n);
+            if(n > 1<<r) ++r;
+            return r;
         }
     }
 }

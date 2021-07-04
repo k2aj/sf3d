@@ -6,11 +6,11 @@ namespace DGL.Model
 {
     public sealed class Model : IDisposable
     {
-        private VBO indices = new(), positions = new(), normals = new(), diffuse = new();
+        private VBO indices = new(), positions = new(), normals = new(), uv = new();
         private VAO vao = new(), shadowVao = new();
         private int indexCount;
 
-        public Model(Span<int> indices, Span<Vector3> positions, Span<Vector3> normals, Span<Color4> diffuse)
+        public Model(Span<int> indices, Span<Vector3> positions, Span<Vector3> normals, Span<Vector2> uvs)
         {
             vao.Bind();
 
@@ -26,9 +26,9 @@ namespace DGL.Model
             this.normals.Allocate(normals);
             vao.AttachAttribs<Vector3>(this.normals, AttribLocations.Normal);
 
-            this.diffuse.Bind();
-            this.diffuse.Allocate(diffuse);
-            vao.AttachAttribs<Color4>(this.diffuse, AttribLocations.Diffuse);
+            this.uv.Bind();
+            this.uv.Allocate(uvs);
+            vao.AttachAttribs<Vector2>(this.uv, AttribLocations.UV);
 
             shadowVao.Bind();
             shadowVao.AttachIndices(this.indices);
@@ -63,7 +63,7 @@ namespace DGL.Model
             indices.Dispose();
             positions.Dispose();
             normals.Dispose();
-            diffuse.Dispose();
+            uv.Dispose();
         }
     }
 }

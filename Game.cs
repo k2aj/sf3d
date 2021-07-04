@@ -10,6 +10,8 @@ using OpenTK.Graphics.OpenGL;
 using DGL;
 using DGL.Model;
 
+using System.Drawing;
+
 namespace SF3D
 {
     public static class RandomExtensions
@@ -99,6 +101,12 @@ namespace SF3D
             Color4.YellowGreen,
             Color4.Orange,
         };
+        private static Vector2[] uvs = {
+            new(0,0), new(0,1), new(1,1),
+            new(0,0), new(0,1), new(1,1),
+            new(0,0), new(0,1), new(1,1),
+            new(0,0), new(0,1), new(1,1),
+        };
         private static int[] indices = {
             0,1,2,
             3,4,5,
@@ -118,6 +126,10 @@ namespace SF3D
         private Texture2D shadowMap, hdr, bloom1, bloom2;
         private Sampler sNearest, sLinear;
         private List<Tetragon> tetragons = new();
+
+        private Bitmap bitmap = new("textures/lol.png");
+        private Atlas atlas;
+        private AtlasSlice bitmapSlice, ohno;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             unsafe 
@@ -127,7 +139,7 @@ namespace SF3D
             }
             UpdateFrequency = 60.0;
 
-            model = new(indices.AsSpan(), positions.AsSpan(), normals.AsSpan(), diffuse.AsSpan());
+            model = new(indices.AsSpan(), positions.AsSpan(), normals.AsSpan(), uvs.AsSpan());
 
             gBuffer = new(size: new(1920,1080));
             Shaders.Init();
@@ -146,6 +158,10 @@ namespace SF3D
 
             sNearest = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Nearest, MagFilter = TextureMagFilter.Nearest};
             sLinear = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Linear, MagFilter = TextureMagFilter.Linear};
+
+            atlas = new(new(512));
+            bitmapSlice = atlas.Allocate(bitmap);
+            ohno = atlas.Allocate(new Bitmap("textures/ohno.png"));
 
             var rng = new Random();
             
@@ -221,10 +237,18 @@ namespace SF3D
             float aspectRatio = Size.X / Size.Y;
             Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.25f, 40f, out Matrix4 projection);
 
-            // Matrices for shadow mapping
-            var lightPos = new Vector3(0,10,0);
-            var lightProjection = Matrix4.CreateOrthographicOffCenter(-10, 10, -10, 10, 2, 20);
-            var lightView = Matrix4.LookAt(lightPos, new Vector3(0.5f,0,0), Vector3.UnitY);
+            // Bind textures
+            Texture2D.BindAll(
+                (TextureUnit.Texture0, gBuffer.DiffuseMap, sNearest),
+                (TextureUnit.Texture1, gBuffer.SpecularMap, sNearest),
+                (TextureUnit.Texture2, gBuffer.NormalMap, sNearest),
+                (TextureUnit.Texture3, gBuffer.PositionMap, sNearest),
+                (TextureUnit.Texture4, shadowMap, sNearest),
+                (TextureUnit.Texture5, hdr, sLinear),
+                (TextureUnit.Texture6, bloom1, sLinear),
+                (TextureUnit.Texture7, bloom2, sLinear),
+                (TextureUnit.Texture8, atlas.Texture, sLinear)
+            );
 
             // Render scene to gbuffer
             GL.Clear(ClearBufferMask.DepthBufferBit);
@@ -233,9 +257,16 @@ namespace SF3D
             GL.ClearBuffer(ClearBuffer.Color, 2, new float[] {0.5f,0.5f,0.5f,0}); //normal vectors - should be 0,0,0 for background but we store them as (normal+1)/2, so 0.5,0.5,0.5 stands for 0,0,0
             GL.ClearBuffer(ClearBuffer.Color, 3, new float[] {0,0,0,0}); //positions - don't matter for background
 
+            Shaders.GBufferVVV.Bind();
+            Shaders.GBufferVVV.Atlas = TextureUnit.Texture8;
+            Shaders.GBufferVVV.AtlasSlice = bitmapSlice;
             scene.Render(camera.ViewMatrix, projection, shadow: false);
 
             // Render scene to shadow map
+            var lightPos = new Vector3(0,10,0);
+            var lightProjection = Matrix4.CreateOrthographicOffCenter(-10, 10, -10, 10, 2, 20);
+            var lightView = Matrix4.LookAt(lightPos, new Vector3(0.5f,0,0), Vector3.UnitY);
+
             shadowFbo.Bind();
             GL.Viewport(0, 0, shadowFbo.Size.X, shadowFbo.Size.Y);
             GL.Clear(ClearBufferMask.DepthBufferBit);
@@ -245,17 +276,6 @@ namespace SF3D
             hdrFbo.Bind();
             GL.Viewport(0,0,hdrFbo.Size.X,hdrFbo.Size.Y);
             GL.Disable(EnableCap.DepthTest);            
-
-            Texture2D.BindAll(
-                (TextureUnit.Texture0, gBuffer.DiffuseMap, sNearest),
-                (TextureUnit.Texture1, gBuffer.SpecularMap, sNearest),
-                (TextureUnit.Texture2, gBuffer.NormalMap, sNearest),
-                (TextureUnit.Texture3, gBuffer.PositionMap, sNearest),
-                (TextureUnit.Texture4, shadowMap, sNearest),
-                (TextureUnit.Texture5, hdr, sLinear),
-                (TextureUnit.Texture6, bloom1, sLinear),
-                (TextureUnit.Texture7, bloom2, sLinear)
-            );
             
             Shaders.DeferredSunlight.Bind();
 

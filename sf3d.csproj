@@ -8,11 +8,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(configuration)' == 'Debug' ">
-    <!-- Only enable DGL debug features in debug mode -->
     <DefineConstants>DGL_AUTOBIND;DGL_LOG_MISSING_BIND</DefineConstants>
     <GenerateDocumentationFiles>true</GenerateDocumentationFiles>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="OpenTK" Version="4.6.3"/>
+    <PackageReference Include="System.Drawing.Common" Version="5.0.2"/>
   </ItemGroup>
 </Project>
