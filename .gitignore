@@ -7,3 +7,6 @@ bin/
 # GLIntercept files
 OpenGL32.dll
 gliConfig.ini
+
+# Blender backup files
+*.blend1

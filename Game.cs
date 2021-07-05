@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
@@ -130,6 +131,8 @@ namespace SF3D
         private Bitmap bitmap = new("textures/lol.png");
         private Atlas atlas;
         private AtlasSlice bitmapSlice, ohno;
+
+        private Model planeModel;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             unsafe 
@@ -163,6 +166,9 @@ namespace SF3D
             bitmapSlice = atlas.Allocate(bitmap);
             ohno = atlas.Allocate(new Bitmap("textures/ohno.png"));
 
+            using(var stream = File.OpenRead("models/jetfighter/jetfighter.obj"))
+                planeModel = WavefrontOBJ.Parse(stream).ToModel();
+
             var rng = new Random();
             
             for(int i=0; i<100; ++i) 
@@ -171,6 +177,7 @@ namespace SF3D
                 t.OnSpawned(scene);
                 tetragons.Add(t);
             }
+            scene.Add(planeModel, Matrix4.Identity);
         }
 
         static void Main(string[] args)
@@ -286,7 +293,7 @@ namespace SF3D
 
             Shaders.DeferredSunlight.AmbientLightColor = new(0.5f);
             Shaders.DeferredSunlight.LightDirection = new(0,-1,0);
-            Shaders.DeferredSunlight.LightColor = new(10);
+            Shaders.DeferredSunlight.LightColor = new(3);
             Shaders.DeferredSunlight.CameraPosition = camera.Eye;
 
             Shaders.DeferredSunlight.ShadowMap = TextureUnit.Texture4;
