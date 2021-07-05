@@ -23,97 +23,6 @@ namespace SF3D
     }
     class Game : GameWindow
     {
-        class Tetragon
-        {
-            private float angularVelocity;
-            private float rotation = 0;
-            private Vector3 rotationAxis;
-            private Vector3 position;
-            private float scale;
-            private Scene.ObjectID id;
-            private Model model;
-            public Tetragon(Random rng, Model model) 
-            {
-                scale = rng.NextFloat() + 0.3f;
-                angularVelocity = rng.NextFloat(-0.5f,0.5f);
-                rotation = rng.NextFloat(-MathF.PI, MathF.PI);
-                rotationAxis = rng.NextVector3(1);
-                position = rng.NextVector3(7.5f);
-                this.model = model;
-            }
-            public void OnSpawned(Scene scene) => id = scene.Add(model, Matrix4.Identity);
-            public void Update(Scene scene, float dt)
-            {
-                rotation += angularVelocity * dt;
-                var modelMatrix = 
-                    Matrix4.CreateScale(scale) * 
-                    Matrix4.CreateFromAxisAngle(rotationAxis, rotation) *
-                    Matrix4.CreateTranslation(position);
-                scene.SetModelMatrix(id, modelMatrix);
-            }
-        }
-
-        private static Vector3[] positions = {
-            new( 0, -0.544f,  1.155f),
-            new( 0,  1.088f,  0),
-            new( 1, -0.544f, -0.577f),
-
-            new( 0, -0.544f,  1.155f),
-            new(-1, -0.544f, -0.577f),
-            new( 0,  1.088f,  0),
-
-            new(-1, -0.544f, -0.577f),
-            new( 1, -0.544f, -0.577f),
-            new( 0,  1.088f,  0),
-
-            new( 0, -0.544f,  1.155f),
-            new( 1, -0.544f, -0.577f),
-            new(-1, -0.544f, -0.577f),
-        };
-        private static Vector3[] normals = {
-            
-            new(0.866f, 0, 0.5f),
-            new(0.866f, 0, 0.5f),
-            new(0.866f, 0, 0.5f),
-
-            new(-0.866f, 0, 0.5f),
-            new(-0.866f, 0, 0.5f),
-            new(-0.866f, 0, 0.5f),
-
-            new(0,0,-1),
-            new(0,0,-1),
-            new(0,0,-1),
-
-            new(0,-1,0),
-            new(0,-1,0),
-            new(0,-1,0),
-        };
-        private static Color4[] diffuse = {
-            Color4.OrangeRed,
-            Color4.DarkRed,
-            Color4.IndianRed,
-            Color4.ForestGreen,
-            Color4.DarkGreen,
-            Color4.LawnGreen,
-            Color4.RoyalBlue,
-            Color4.AliceBlue,
-            Color4.Aquamarine,
-            Color4.LightGoldenrodYellow,
-            Color4.YellowGreen,
-            Color4.Orange,
-        };
-        private static Vector2[] uvs = {
-            new(0,0), new(0,1), new(1,1),
-            new(0,0), new(0,1), new(1,1),
-            new(0,0), new(0,1), new(1,1),
-            new(0,0), new(0,1), new(1,1),
-        };
-        private static int[] indices = {
-            0,1,2,
-            3,4,5,
-            6,7,8,
-            9,10,11,
-        };
         private static float[] gaussianBlurKernel = {
             0.055f, 0.244f, 0.402f, 0.244f, 0.055f
         };
@@ -121,18 +30,16 @@ namespace SF3D
         private Scene scene = new();
         private Camera camera = new(){Target = new(0.5f,0,0), Eye = new(0,0,-3)};
         private const float cameraVelocity = 3;
-        private Model model;
         private GBuffer gBuffer;
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
         private Texture2D shadowMap, hdr, bloom1, bloom2;
         private Sampler sNearest, sLinear;
-        private List<Tetragon> tetragons = new();
-
         private Bitmap bitmap = new("textures/lol.png");
         private Atlas atlas;
         private AtlasSlice bitmapSlice, ohno;
 
-        private Model planeModel;
+        private Model plane, tree;//, terrain;
+        Scene.ObjectID objectID;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             unsafe 
@@ -141,8 +48,6 @@ namespace SF3D
                 GLFW.SetInputMode(WindowPtr, CursorStateAttribute.Cursor, CursorModeValue.CursorDisabled);
             }
             UpdateFrequency = 60.0;
-
-            model = new(indices.AsSpan(), positions.AsSpan(), normals.AsSpan(), uvs.AsSpan());
 
             gBuffer = new(size: new(1920,1080));
             Shaders.Init();
@@ -166,18 +71,17 @@ namespace SF3D
             bitmapSlice = atlas.Allocate(bitmap);
             ohno = atlas.Allocate(new Bitmap("textures/ohno.png"));
 
-            using(var stream = File.OpenRead("models/jetfighter/jetfighter.obj"))
-                planeModel = WavefrontOBJ.Parse(stream).ToModel();
+            plane = WavefrontOBJ.Parse("models/jetfighter/jetfighter.obj").ToModel(atlas);
+            tree = WavefrontOBJ.Parse("models/tree/tree.obj").ToModel(atlas);
+            //terrain = WavefrontOBJ.Parse("models/terrain/terrain.obj").ToModel(atlas);
 
             var rng = new Random();
-            
-            for(int i=0; i<100; ++i) 
+            objectID = scene.Add(plane, Matrix4.Identity);
+            //scene.Add(terrain, Matrix4.CreateScale(0.25f));
+            for(int i=0; i<10; ++i)
             {
-                var t = new Tetragon(rng,model);
-                t.OnSpawned(scene);
-                tetragons.Add(t);
+                scene.Add(tree, Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
             }
-            scene.Add(planeModel, Matrix4.Identity);
         }
 
         static void Main(string[] args)
@@ -197,6 +101,8 @@ namespace SF3D
             var input = KeyboardState;
             if(input.IsKeyDown(Keys.Escape))
                 Close();
+
+            scene.SetModelMatrix(objectID, Matrix4.CreateFromAxisAngle(new Vector3(0,1,0), 0.25f*t)*Matrix4.CreateTranslation(0,1,0));
 
             // Naive implementation of flying FPS-style camera
             Vector3 cameraForward = new(camera.LookDir.X, 0, camera.LookDir.Z);
@@ -222,9 +128,6 @@ namespace SF3D
             lookPitch = (float) Math.Clamp(lookPitch + mouseDelta.Y/100, -Math.PI/2.01, Math.PI/2.01);
             lookYaw += mouseDelta.X/100;
             camera.LookDir = Matrix3.CreateRotationY(lookYaw)*Matrix3.CreateRotationX(-lookPitch)*Vector3.UnitZ;
-
-            foreach(var t in tetragons)
-                t.Update(scene, dt);
 
             base.OnUpdateFrame(e);
         }
@@ -266,12 +169,12 @@ namespace SF3D
 
             Shaders.GBufferVVV.Bind();
             Shaders.GBufferVVV.Atlas = TextureUnit.Texture8;
-            Shaders.GBufferVVV.AtlasSlice = bitmapSlice;
+            Shaders.GBufferVVV.AtlasSize = atlas.Texture.Size;
             scene.Render(camera.ViewMatrix, projection, shadow: false);
 
             // Render scene to shadow map
             var lightPos = new Vector3(0,10,0);
-            var lightProjection = Matrix4.CreateOrthographicOffCenter(-10, 10, -10, 10, 2, 20);
+            var lightProjection = Matrix4.CreateOrthographicOffCenter(-40, 40, -40, 40, 2, 20);
             var lightView = Matrix4.LookAt(lightPos, new Vector3(0.5f,0,0), Vector3.UnitY);
 
             shadowFbo.Bind();

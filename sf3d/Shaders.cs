@@ -44,34 +44,20 @@ namespace SF3D
     }
     public class SceneShaderProgram : ShaderProgram
     {
-        private int uModel, uView, uProjection, uAtlas, uUvOffset, uUvScale;
+        private int uModel, uView, uProjection, uAtlas, uInvAtlasSize;
         public SceneShaderProgram(params Shader[] shaders) : base(shaders) 
         {
             uModel = GetUniformLocation("model");
             uView = GetUniformLocation("view");
             uProjection = GetUniformLocation("projection");
             uAtlas = GetUniformLocation("atlas");
-            uUvOffset = GetUniformLocation("uvOffset");
-            uUvScale = GetUniformLocation("uvScale");
+            uInvAtlasSize = GetUniformLocation("invAtlasSize");
         }
         public Matrix4 Model {set {EnsureBound(); GL.UniformMatrix4(uModel, false, ref value);}}
         public Matrix4 View {set {EnsureBound(); GL.UniformMatrix4(uView, false, ref value);}}
         public Matrix4 Projection {set {EnsureBound(); GL.UniformMatrix4(uProjection, false, ref value);}}
         public TextureUnit Atlas {set {EnsureBound(); GL.Uniform1(uAtlas, (int) value - (int) TextureUnit.Texture0);}}
-        public Vector2 UvOffset {set {EnsureBound(); GL.Uniform2(uUvOffset, value);}}
-        public Vector2 UvScale {set {EnsureBound(); GL.Uniform2(uUvScale, value);}}
-        public AtlasSlice AtlasSlice 
-        {
-            set 
-            {
-                EnsureBound(); 
-                var aSize = (Vector2) value.Atlas.Texture.Size;
-                var sSize = value.Area.Size;
-                var sOffset = value.Area.Min;
-                UvOffset = new(sOffset.X/aSize.X, sOffset.Y/aSize.Y);
-                UvScale = new(sSize.X/aSize.X, sSize.Y/aSize.Y);
-            }
-        }
+        public Vector2 AtlasSize {set {EnsureBound(); GL.Uniform2(uInvAtlasSize, new Vector2(1/value.X, 1/value.Y));}}
     }
 
     public class DeferredShaderProgram : ShaderProgram

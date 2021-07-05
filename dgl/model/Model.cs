@@ -6,11 +6,11 @@ namespace DGL.Model
 {
     public sealed class Model : IDisposable
     {
-        private VBO indices = new(), positions = new(), normals = new(), uv = new();
+        private VBO indices = new(), positions = new(), normals = new(), diffuseUv = new(), specularUv = new();
         private VAO vao = new(), shadowVao = new();
         private int indexCount;
 
-        public Model(Span<int> indices, Span<Vector3> positions, Span<Vector3> normals, Span<Vector2> uvs)
+        public Model(Span<int> indices, Span<Vector3> positions, Span<Vector3> normals, Span<Vector2> diffuseUvs, Span<Vector2> specularUvs)
         {
             vao.Bind();
 
@@ -26,9 +26,13 @@ namespace DGL.Model
             this.normals.Allocate(normals);
             vao.AttachAttribs<Vector3>(this.normals, AttribLocations.Normal);
 
-            this.uv.Bind();
-            this.uv.Allocate(uvs);
-            vao.AttachAttribs<Vector2>(this.uv, AttribLocations.UV);
+            this.diffuseUv.Bind();
+            this.diffuseUv.Allocate(diffuseUvs);
+            vao.AttachAttribs<Vector2>(this.diffuseUv, AttribLocations.Diffuse);
+
+            this.specularUv.Bind();
+            this.specularUv.Allocate(specularUvs);
+            vao.AttachAttribs<Vector2>(this.specularUv, AttribLocations.Specular);
 
             shadowVao.Bind();
             shadowVao.AttachIndices(this.indices);
@@ -63,7 +67,8 @@ namespace DGL.Model
             indices.Dispose();
             positions.Dispose();
             normals.Dispose();
-            uv.Dispose();
+            diffuseUv.Dispose();
+            specularUv.Dispose();
         }
     }
 }
