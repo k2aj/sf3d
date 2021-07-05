@@ -1,6 +1,7 @@
 #version 330 core
 
-in vec2 uv;
+// we don't want perspective-correct interpolation because the texture is applied to a framebuffer, not a model
+noperspective in vec2 uv;
 
 uniform sampler2D diffuseMap;
 uniform sampler2D specularMap;
@@ -55,6 +56,7 @@ vec3 light(vec3 position, out vec3 direction);
 
 void main() 
 {
+   //#define uv (gl_FragCoord.xy/gl_FragCoord.w*0.5+0.5)
     //Extract data from gbuffer
     vec3 diffuseColor = texture(diffuseMap,uv).rgb;
 

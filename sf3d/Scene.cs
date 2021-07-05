@@ -16,6 +16,7 @@ namespace SF3D
         private Dictionary<ObjectID,(Model,Matrix4)> objects = new();
         private List<ObjectID> freeList = new();
         int curObjectID = 0;
+        private List<OmniLight> lights = new();
         public struct ObjectID
         {
             private int value;
@@ -34,6 +35,7 @@ namespace SF3D
             objects[result] = (model, modelMatrix);
             return result;
         }
+        public void Add(OmniLight light) => lights.Add(light);
         public void Remove(ObjectID id)
         {
             if(objects.Remove(id))
@@ -56,5 +58,47 @@ namespace SF3D
                 model.Draw(shadow);
             }
         }
+
+        public void RenderLights(Camera camera)
+        {
+            Shaders.DeferredOmni.EnsureBound();
+            Shaders.DeferredOmni.Projection = camera.ProjectionMatrix;
+            Shaders.DeferredOmni.View = camera.ViewMatrix;
+            Shaders.DeferredOmni.ZNear = camera.ZNear;
+
+            Models.OmniLight.Bind(shadow: true);
+
+            var clippingPlaneNormal = camera.LookDir.Normalized();
+            foreach(var light in lights)
+            {
+                // Cull lights which don't affect anything visible on screen
+                //var distanceFromNearPlane = Vector3.Dot((light.Position - camera.Eye), clippingPlaneNormal) - camera.ZNear;
+                //if(distanceFromNearPlane >= -light.Range) 
+                {
+                    Shaders.DeferredOmni.Light = light;
+                    Models.OmniLight.Draw(shadow: true);
+                }
+
+            }
+        }
+    }
+
+    public sealed class OmniLight
+    {
+        public Vector3 Position = Vector3.Zero;
+        public Vector3 Intensity = Vector3.One;
+        public float Range {
+            get
+            {
+                float delta = Attenuation.X*Attenuation.X - 4*Attenuation.Y*(1-1/Attenuation.Z);
+                return (-Attenuation.X+MathF.Sqrt(delta))/(2*Attenuation.Y);
+            }
+        }
+        // const coefficient is always 1
+        // X - linear coefficient
+        // Y - quadratic coefficient
+        // Z - bias (gets subtracted from attenuation value, used to limit range of the light source)
+        // W - reserved for future use
+        public Vector4 Attenuation = new(0.1f);
     }
 }

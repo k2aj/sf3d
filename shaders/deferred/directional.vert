@@ -1,6 +1,6 @@
 #version 330 core
 
-out vec2 uv;
+noperspective out vec2 uv;
 
 const vec2 model[6] = vec2[6](
     vec2(-1.0,-1.0),

@@ -7,13 +7,14 @@ using DGL;
 
 namespace SF3D
 {
-    public sealed class Shaders
+    public static class Shaders
     {
         /// <summary>
         ///  GBuffer-filling shader program. Diffuse color, specular color and normal vectors are stored in model vertices.
         /// </summary>
         public static SceneShaderProgram GBufferVVV, Shadow;
         public static DeferredSunlightShaderProgram DeferredSunlight;
+        public static DeferredOmniShaderProgram DeferredOmni;
         public static PostProcessingEffect Identity;
         public static ToneMappingEffect ToneMapping;
         public static FilterGreaterEffect FilterGreater;
@@ -28,6 +29,7 @@ namespace SF3D
                 GBufferVVV = new(loader.Get("shaders/vvv/common.vert"), loader.Get("shaders/vvv/gbuffer.frag"));
                 Shadow = new(loader.Get("shaders/shadow.vert"), loader.Get("shaders/empty.frag"));
                 DeferredSunlight = new(loader.GetDeferred(type: "directional", brdf: "blinn-phong", shadows: "pcf", ambientLighting: true));
+                DeferredOmni = new(loader.GetDeferred(type: "omni", brdf: "blinn-phong", shadows: "none", ambientLighting: false));
                 Identity = new(loader.GetPostProcessing("identity"));
                 ToneMapping = new(loader.GetPostProcessing("tone-mapping"));
                 FilterGreater = new(loader.GetPostProcessing("filter-greater"));
@@ -97,6 +99,36 @@ namespace SF3D
         public TextureUnit ShadowMap {set {EnsureBound(); GL.Uniform1(uShadowMap, (int) value - (int) TextureUnit.Texture0);}}
         public Matrix4 ShadowViewProjection {set {EnsureBound(); GL.UniformMatrix4(uShadowViewProjection, false, ref value);}}
         public float ShadowBias {set {EnsureBound(); GL.Uniform1(uShadowBias, value);}}
+    }
+
+    public sealed class DeferredOmniShaderProgram : DeferredShaderProgram
+    {
+        private int uModel, uView, uProjection, uLightColor, uLightPosition, uAttenuation, uZNear;
+        public DeferredOmniShaderProgram(params Shader[] shaders) : base(shaders)
+        {
+            uModel = GetUniformLocation("model");
+            uView = GetUniformLocation("view");
+            uProjection = GetUniformLocation("projection");
+            uLightColor = GetUniformLocation("lightColor");
+            uLightPosition = GetUniformLocation("lightPosition");
+            uAttenuation = GetUniformLocation("attenuation");
+            uZNear = GetUniformLocation("zNear");
+        }
+        public Matrix4 Model {set {EnsureBound(); GL.UniformMatrix4(uModel, false, ref value);}}
+        public Matrix4 View {set {EnsureBound(); GL.UniformMatrix4(uView, false, ref value);}}
+        public Matrix4 Projection {set {EnsureBound(); GL.UniformMatrix4(uProjection, false, ref value);}}
+        public Vector3 LightColor {set {EnsureBound(); GL.Uniform3(uLightColor, value);}}
+        public Vector4 Attenuation {set {EnsureBound(); GL.Uniform4(uAttenuation, value);}}
+        public OmniLight Light
+        {
+            set
+            {
+                Model = Matrix4.CreateScale(value.Range) * Matrix4.CreateTranslation(value.Position);
+                LightColor = value.Intensity;
+                Attenuation = value.Attenuation;
+            }
+        }
+        public float ZNear {set {EnsureBound(); GL.Uniform1(uZNear, value);}}
     }
 
     public class PostProcessingEffect : ShaderProgram

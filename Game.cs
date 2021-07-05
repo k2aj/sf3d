@@ -34,11 +34,8 @@ namespace SF3D
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
         private Texture2D shadowMap, hdr, bloom1, bloom2;
         private Sampler sNearest, sLinear;
-        private Bitmap bitmap = new("textures/lol.png");
-        private Atlas atlas;
-        private AtlasSlice bitmapSlice, ohno;
 
-        private Model plane, tree;//, terrain;
+        //, terrain;
         Scene.ObjectID objectID;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
@@ -51,6 +48,7 @@ namespace SF3D
 
             gBuffer = new(size: new(1920,1080));
             Shaders.Init();
+            Models.Init();
 
             shadowMap = new Texture2D(PixelInternalFormat.DepthComponent32, new(2048,2048));
             shadowFbo = new((FramebufferAttachment.DepthAttachment, shadowMap));
@@ -67,21 +65,20 @@ namespace SF3D
             sNearest = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Nearest, MagFilter = TextureMagFilter.Nearest};
             sLinear = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Linear, MagFilter = TextureMagFilter.Linear};
 
-            atlas = new(new(512));
-            bitmapSlice = atlas.Allocate(bitmap);
-            ohno = atlas.Allocate(new Bitmap("textures/ohno.png"));
-
-            plane = WavefrontOBJ.Parse("models/jetfighter/jetfighter.obj").ToModel(atlas);
-            tree = WavefrontOBJ.Parse("models/tree/tree.obj").ToModel(atlas);
             //terrain = WavefrontOBJ.Parse("models/terrain/terrain.obj").ToModel(atlas);
 
             var rng = new Random();
-            objectID = scene.Add(plane, Matrix4.Identity);
+            objectID = scene.Add(Models.Plane, Matrix4.Identity);
             //scene.Add(terrain, Matrix4.CreateScale(0.25f));
+            var light = new OmniLight{Intensity = new(1), Position = new(0,1.5f,1)};
+            scene.Add(Models.OmniLight, Matrix4.CreateTranslation(0,0,5));
             for(int i=0; i<10; ++i)
             {
-                scene.Add(tree, Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
+                scene.Add(Models.Tree, Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
             }
+            scene.Add(light);
+
+            GL.Enable(EnableCap.CullFace);
         }
 
         static void Main(string[] args)
@@ -145,7 +142,8 @@ namespace SF3D
             GL.Disable(EnableCap.Blend);
 
             float aspectRatio = Size.X / Size.Y;
-            Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.25f, 40f, out Matrix4 projection);
+            var projection = camera.ProjectionMatrix;
+            //Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.25f, 40f, out Matrix4 projection);
 
             // Bind textures
             Texture2D.BindAll(
@@ -157,7 +155,7 @@ namespace SF3D
                 (TextureUnit.Texture5, hdr, sLinear),
                 (TextureUnit.Texture6, bloom1, sLinear),
                 (TextureUnit.Texture7, bloom2, sLinear),
-                (TextureUnit.Texture8, atlas.Texture, sLinear)
+                (TextureUnit.Texture8, Models.Atlas.Texture, sLinear)
             );
 
             // Render scene to gbuffer
@@ -169,7 +167,7 @@ namespace SF3D
 
             Shaders.GBufferVVV.Bind();
             Shaders.GBufferVVV.Atlas = TextureUnit.Texture8;
-            Shaders.GBufferVVV.AtlasSize = atlas.Texture.Size;
+            Shaders.GBufferVVV.AtlasSize = Models.Atlas.Texture.Size;
             scene.Render(camera.ViewMatrix, projection, shadow: false);
 
             // Render scene to shadow map
@@ -194,9 +192,9 @@ namespace SF3D
             Shaders.DeferredSunlight.NormalMap = TextureUnit.Texture2;
             Shaders.DeferredSunlight.PositionMap = TextureUnit.Texture3;
 
-            Shaders.DeferredSunlight.AmbientLightColor = new(0.5f);
+            Shaders.DeferredSunlight.AmbientLightColor = new(0.15f);
             Shaders.DeferredSunlight.LightDirection = new(0,-1,0);
-            Shaders.DeferredSunlight.LightColor = new(3);
+            Shaders.DeferredSunlight.LightColor = new(0);
             Shaders.DeferredSunlight.CameraPosition = camera.Eye;
 
             Shaders.DeferredSunlight.ShadowMap = TextureUnit.Texture4;
@@ -204,6 +202,18 @@ namespace SF3D
             
             VAO.Empty.Bind();
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+
+            Shaders.DeferredOmni.Bind();
+            Shaders.DeferredOmni.DiffuseMap = TextureUnit.Texture0;
+            Shaders.DeferredOmni.SpecularMap = TextureUnit.Texture1;
+            Shaders.DeferredOmni.NormalMap = TextureUnit.Texture2;
+            Shaders.DeferredOmni.PositionMap = TextureUnit.Texture3;
+
+            GL.Enable(EnableCap.Blend);
+            GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
+            scene.RenderLights(camera);
+            GL.Disable(EnableCap.Blend);
 
             // Extract bright fragments into bloomFbo1
             bloomFbo1.Bind();
