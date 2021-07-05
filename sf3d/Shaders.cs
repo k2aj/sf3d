@@ -24,12 +24,10 @@ namespace SF3D
         {
             using(SF3DShaderLoader loader = new())
             {
-
-
                 GBufferVVV = new(loader.Get("shaders/vvv/common.vert"), loader.Get("shaders/vvv/gbuffer.frag"));
                 Shadow = new(loader.Get("shaders/shadow.vert"), loader.Get("shaders/empty.frag"));
-                DeferredSunlight = new(loader.GetDeferred(type: "directional", brdf: "blinn-phong", shadows: "pcf", ambientLighting: true));
-                DeferredOmni = new(loader.GetDeferred(type: "omni", brdf: "blinn-phong", shadows: "none", ambientLighting: false));
+                DeferredSunlight = new(loader.GetDeferred(type: "directional", brdf: "blinn-phong", shadows: "pcf", background: true));
+                DeferredOmni = new(loader.GetDeferred(type: "omni", brdf: "blinn-phong"));
                 Identity = new(loader.GetPostProcessing("identity"));
                 ToneMapping = new(loader.GetPostProcessing("tone-mapping"));
                 FilterGreater = new(loader.GetPostProcessing("filter-greater"));
@@ -64,7 +62,7 @@ namespace SF3D
 
     public class DeferredShaderProgram : ShaderProgram
     {
-        private int uDiffuseMap, uSpecularMap, uNormalMap, uPositionMap, uCameraPosition;
+        private int uDiffuseMap, uSpecularMap, uNormalMap, uPositionMap, uCameraPosition, uLightColor, uAmbientLightColor;
         public DeferredShaderProgram(params Shader[] shaders) : base(shaders)
         {
             uDiffuseMap = GetUniformLocation("diffuseMap");
@@ -72,30 +70,29 @@ namespace SF3D
             uNormalMap = GetUniformLocation("normalMap");
             uPositionMap = GetUniformLocation("positionMap");
             uCameraPosition = GetUniformLocation("cameraPosition");
+            uLightColor = GetUniformLocation("lightColor");
+            uAmbientLightColor = GetUniformLocation("ambientLightColor");
         }
         public TextureUnit DiffuseMap {set {EnsureBound(); GL.Uniform1(uDiffuseMap, (int) value - (int) TextureUnit.Texture0);}}
         public TextureUnit SpecularMap {set {EnsureBound(); GL.Uniform1(uSpecularMap, (int) value - (int) TextureUnit.Texture0);}}
         public TextureUnit NormalMap {set {EnsureBound(); GL.Uniform1(uNormalMap, (int) value - (int) TextureUnit.Texture0);}}
         public TextureUnit PositionMap {set {EnsureBound(); GL.Uniform1(uPositionMap, (int) value - (int) TextureUnit.Texture0);}}
         public Vector3 CameraPosition {set {EnsureBound(); GL.Uniform3(uCameraPosition, value);}}
+        public Vector3 LightColor {set {EnsureBound(); GL.Uniform3(uLightColor, value);}}
+        public Vector3 AmbientLightColor {set {EnsureBound(); GL.Uniform3(uAmbientLightColor, value);}}
     }
 
     public sealed class DeferredSunlightShaderProgram : DeferredShaderProgram
     {
-        private int uLightDirection, uLightColor, uAmbientLightColor, uShadowMap, uShadowViewProjection, uShadowBias;
+        private int uLightDirection, uShadowMap, uShadowViewProjection, uShadowBias;
         public DeferredSunlightShaderProgram(params Shader[] shaders) : base(shaders)
         {
             uLightDirection = GetUniformLocation("lightDirection");
-            uLightColor = GetUniformLocation("lightColor");
-            uAmbientLightColor = GetUniformLocation("ambientLightColor");
             uShadowMap = GetUniformLocation("shadowMap");
             uShadowViewProjection = GetUniformLocation("shadowViewProjection");
             uShadowBias = GetUniformLocation("shadowBias");
         }
         public Vector3 LightDirection {set {EnsureBound(); GL.Uniform3(uLightDirection, value);}}
-        public Vector3 LightColor {set {EnsureBound(); GL.Uniform3(uLightColor, value);}}
-        public Vector3 AmbientLightColor {set {EnsureBound(); GL.Uniform3(uAmbientLightColor, value);}}
-
         public TextureUnit ShadowMap {set {EnsureBound(); GL.Uniform1(uShadowMap, (int) value - (int) TextureUnit.Texture0);}}
         public Matrix4 ShadowViewProjection {set {EnsureBound(); GL.UniformMatrix4(uShadowViewProjection, false, ref value);}}
         public float ShadowBias {set {EnsureBound(); GL.Uniform1(uShadowBias, value);}}
@@ -103,13 +100,12 @@ namespace SF3D
 
     public sealed class DeferredOmniShaderProgram : DeferredShaderProgram
     {
-        private int uModel, uView, uProjection, uLightColor, uLightPosition, uAttenuation, uZNear;
+        private int uModel, uView, uProjection, uLightPosition, uAttenuation, uZNear;
         public DeferredOmniShaderProgram(params Shader[] shaders) : base(shaders)
         {
             uModel = GetUniformLocation("model");
             uView = GetUniformLocation("view");
             uProjection = GetUniformLocation("projection");
-            uLightColor = GetUniformLocation("lightColor");
             uLightPosition = GetUniformLocation("lightPosition");
             uAttenuation = GetUniformLocation("attenuation");
             uZNear = GetUniformLocation("zNear");
@@ -117,7 +113,6 @@ namespace SF3D
         public Matrix4 Model {set {EnsureBound(); GL.UniformMatrix4(uModel, false, ref value);}}
         public Matrix4 View {set {EnsureBound(); GL.UniformMatrix4(uView, false, ref value);}}
         public Matrix4 Projection {set {EnsureBound(); GL.UniformMatrix4(uProjection, false, ref value);}}
-        public Vector3 LightColor {set {EnsureBound(); GL.Uniform3(uLightColor, value);}}
         public Vector4 Attenuation {set {EnsureBound(); GL.Uniform4(uAttenuation, value);}}
         public OmniLight Light
         {
@@ -193,13 +188,13 @@ namespace SF3D
         /// <param name="shadows">Shadow algorithm being used (pcf/none).</param>
         /// <param name="ambientLighting">Whether ambient lighting is enabled or disabled.</param>
         /// <returns></returns>
-        public Shader[] GetDeferred(string type, string brdf, string shadows, bool ambientLighting = false) => new Shader[]{
+        public Shader[] GetDeferred(string type, string brdf, string shadows = "none", bool background = false) => new Shader[]{
             Get($"shaders/deferred/{type}.vert"),
             Get("shaders/deferred/base.frag"),
             Get($"shaders/deferred/{type}.frag"),
             Get($"shaders/brdf/{brdf}.frag"),
             Get($"shaders/shadow/{shadows}.frag"),
-            Get($"shaders/deferred/ambient-{(ambientLighting ? "enabled" : "disabled")}.frag")
+            Get($"shaders/deferred/background-{(background ? "enabled" : "disabled")}.frag")
         };
     }
 }

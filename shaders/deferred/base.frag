@@ -35,22 +35,26 @@ vec3 brdf(
     vec3 diffuseColor, vec3 specularColor, float specularExponent
 );
 
-/* Used for switching ambient light on or off.
-   Can be provided by deferred/ambient-enabled.frag or deferred/ambient-disabled.frag
-
-   Applies the effect of ambient lighting to outgoing radiance. 
-*/
-vec3 addAmbient(vec3 radiance, vec3 ambientColor);
-
 /* Used for switching the type of the light source (directional/omni/cone/etc.)
 
    Can be provided by any fragment shader from deferred/ directory (except ambient-* and base.frag).
    You also have to link a vertex shader for the specific light source type (so if you're using directional.frag, you
    also have to use directional.vert).
 
-   Computes irradiance and light direction from the light source at given position.
+   Returns:
+   - Direction of light rays coming from the light source
+   - Irradiance from the light source
+   - Ambient light coming from the light source
 */
-vec3 light(vec3 position, out vec3 direction);
+vec3 light(vec3 position, out vec3 irradiance, out vec3 ambientLight);
+
+/* Used for displaying background.
+   Background ignores lighting and is recognised by having normal vectors equal to 0.
+   Link this with background-enabled.frag or background-disabled.frag. 
+   (background-disabled.frag is useful for additive blending, to prevent the background from being applied
+   multiple times)
+*/
+vec3 applyBackground(vec3 backgroundColor, vec3 lightingResult, float mixingFactor);
 
 //======================================================================================
 
@@ -68,19 +72,20 @@ void main()
     vec3 position = texture(positionMap,uv).xyz;
 
     // Compute irradiance (taking shadows into account) and light direction
-    vec3 lightDirection;
-    vec3 irradiance = applyShadow(light(position, lightDirection), position);
+    vec3 irradiance;
+    vec3 ambientLight;
+    vec3 lightDirection = light(position, irradiance, ambientLight);
+    irradiance = applyShadow(irradiance, position);
 
-    // Compute outgoing radiance using BRDF, add ambient lighting if enabled
+    // Compute outgoing radiance using BRDF, and add ambient lighting
     vec3 toCamera = normalize(cameraPosition - position);
     vec3 brdfVal = brdf(lightDirection, toCamera, normal, diffuseColor, specularColor, specularExponent);
-    vec3 outgoingRadiance = addAmbient(clamp(brdfVal * dot(-lightDirection, normal) * irradiance, 0.0, 1000.0), diffuseColor);
+    vec3 outgoingRadiance = clamp(brdfVal * dot(-lightDirection, normal) * irradiance, 0.0, 1000.0) + diffuseColor*ambientLight;
 
     //Dumb hack to disable lighting for background
     //If normal vector=0, discard results from lighting and copy-paste diffuse color instead   
     float useLighting = dot(normal,normal); 
-
-    fragColor = mix(
+    fragColor = applyBackground(
         diffuseColor, 
         outgoingRadiance,
         useLighting
