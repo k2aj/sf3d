@@ -86,7 +86,8 @@ namespace SF3D
     public sealed class OmniLight
     {
         public Vector3 Position = Vector3.Zero;
-        public Vector3 Intensity = Vector3.One;
+        public Vector3 Color = Vector3.One;
+        public Vector3 AmbientColor = new(0.1f);
         public float Range {
             get
             {

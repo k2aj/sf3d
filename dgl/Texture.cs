@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
 using System.Collections.Generic;
@@ -32,7 +33,7 @@ namespace DGL
             {
                 GL.ActiveTexture(t.target);
                 t.texture.Bind();
-                t.sampler.Bind(t.target);
+                t.sampler.Bind((TextureUnit)(t.target - TextureUnit.Texture0));
             }
         }
         public Vector2i Size {get; private set;} = Vector2i.Zero;
@@ -91,6 +92,58 @@ namespace DGL
             EnsureBound();
             Allocate(new Vector2i(bitmap.Width, bitmap.Height));
             Upload(bitmap, Vector2i.Zero);
+        }
+    }
+
+    public class CubeMap : IDisposable
+    {
+        private int handle;
+
+        public CubeMap(Bitmap[] bitmaps)
+        {
+            handle = GL.GenTexture();
+            Bind();
+            for(int i=0; i<6; ++i)
+            {
+                var data = bitmaps[i].LockBits(new Rectangle(0, 0, bitmaps[i].Width, bitmaps[i].Height), System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                if(data.PixelFormat != System.Drawing.Imaging.PixelFormat.Format32bppArgb)
+                    throw new FormatException($"Pixel format not supported: {data.PixelFormat}.");
+                GL.TexImage2D((TextureTarget)(TextureTarget.TextureCubeMapPositiveX+i), 0, PixelInternalFormat.Rgb8, bitmaps[i].Width, bitmaps[i].Height, 0, PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
+                bitmaps[i].UnlockBits(data);
+            }
+            
+            GL.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMinFilter, (int) TextureMinFilter.Linear); 
+            GL.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureMagFilter, (int) TextureMagFilter.Linear); 
+            GL.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapS, (int) TextureWrapMode.ClampToEdge); 
+            GL.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapT, (int) TextureWrapMode.ClampToEdge); 
+            GL.TexParameter(TextureTarget.TextureCubeMap, TextureParameterName.TextureWrapR, (int) TextureWrapMode.ClampToEdge); 
+        }
+        public CubeMap(string path) : this(
+            (new string[]{"right","left","top","bottom","front","back"})
+            .Select(x => new Bitmap(Path.Combine(path,x+".png")))
+            .ToArray()
+        ) {}
+
+        public void Bind() => GL.BindTexture(TextureTarget.TextureCubeMap, handle);
+        internal bool IsBound() => GL.GetInteger(GetPName.TextureBindingCubeMap) == handle;
+        internal void EnsureBound()
+        {
+            #if DGL_LOG_MISSING_BIND
+            if(!IsBound())
+                DebugUtils.LogUniqueStackTrace("WARNING: Skybox not bound.", 1);
+            #endif
+            #if DGL_AUTOBIND
+                Bind();
+            #endif
+        }
+
+        public void Dispose()
+        {
+            if(handle != 0)
+            {
+                GL.DeleteTexture(handle);
+                handle = 0;
+            }
         }
     }
 

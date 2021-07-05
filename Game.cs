@@ -34,6 +34,7 @@ namespace SF3D
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
         private Texture2D shadowMap, hdr, bloom1, bloom2;
         private Sampler sNearest, sLinear;
+        private CubeMap skybox;
 
         //, terrain;
         Scene.ObjectID objectID;
@@ -65,16 +66,18 @@ namespace SF3D
             sNearest = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Nearest, MagFilter = TextureMagFilter.Nearest};
             sLinear = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Linear, MagFilter = TextureMagFilter.Linear};
 
+            skybox = new("textures/alien-sky");
+
             //terrain = WavefrontOBJ.Parse("models/terrain/terrain.obj").ToModel(atlas);
 
             var rng = new Random();
             objectID = scene.Add(Models.Plane, Matrix4.Identity);
             //scene.Add(terrain, Matrix4.CreateScale(0.25f));
-            var light = new OmniLight{Intensity = new(1), Position = new(0,1.5f,1)};
+            var light = new OmniLight{Color = new(4), AmbientColor = new(1), Position = new(0,2f,1)};
             scene.Add(Models.OmniLight, Matrix4.CreateTranslation(0,0,5));
-            for(int i=0; i<10; ++i)
+            for(int i=0; i<25; ++i)
             {
-                scene.Add(Models.Tree, Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
+                scene.Add(Models.Tree, Matrix4.CreateScale(rng.NextFloat()+0.5f)*Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
             }
             scene.Add(light);
 
@@ -138,8 +141,6 @@ namespace SF3D
         {
             gBuffer.Framebuffer.Bind();
             GL.Viewport(0, 0, gBuffer.Size.X, gBuffer.Size.Y);
-            GL.Enable(EnableCap.DepthTest);
-            GL.Disable(EnableCap.Blend);
 
             float aspectRatio = Size.X / Size.Y;
             var projection = camera.ProjectionMatrix;
@@ -157,6 +158,8 @@ namespace SF3D
                 (TextureUnit.Texture7, bloom2, sLinear),
                 (TextureUnit.Texture8, Models.Atlas.Texture, sLinear)
             );
+            GL.ActiveTexture(TextureUnit.Texture9);
+            skybox.Bind();
 
             // Render scene to gbuffer
             GL.Clear(ClearBufferMask.DepthBufferBit);
@@ -164,6 +167,18 @@ namespace SF3D
             GL.ClearBuffer(ClearBuffer.Color, 1, new float[] {0,0,0,0}); //specular color - doesn't matter for background
             GL.ClearBuffer(ClearBuffer.Color, 2, new float[] {0.5f,0.5f,0.5f,0}); //normal vectors - should be 0,0,0 for background but we store them as (normal+1)/2, so 0.5,0.5,0.5 stands for 0,0,0
             GL.ClearBuffer(ClearBuffer.Color, 3, new float[] {0,0,0,0}); //positions - don't matter for background
+
+            GL.Disable(EnableCap.DepthTest);
+            GL.CullFace(CullFaceMode.Front);
+            Shaders.Skybox.Bind();
+            Shaders.Skybox.View = new Matrix4(new Matrix3(camera.ViewMatrix));
+            Shaders.Skybox.Projection = camera.ProjectionMatrix;
+            Shaders.Skybox.Model = Matrix4.CreateScale(10) * Matrix4.CreateRotationX(-MathF.PI/3);
+            Shaders.Skybox.CubeMap = TextureUnit.Texture9;
+            Models.TestCube.Bind(shadow: true);
+            Models.TestCube.Draw(shadow: true);
+            GL.CullFace(CullFaceMode.Back);
+            GL.Enable(EnableCap.DepthTest);
 
             Shaders.GBufferVVV.Bind();
             Shaders.GBufferVVV.Atlas = TextureUnit.Texture8;
@@ -194,7 +209,7 @@ namespace SF3D
 
             Shaders.DeferredSunlight.AmbientLightColor = new(0.15f);
             Shaders.DeferredSunlight.LightDirection = new(0,-1,0);
-            Shaders.DeferredSunlight.LightColor = new(0);
+            Shaders.DeferredSunlight.LightColor = new(3);
             Shaders.DeferredSunlight.CameraPosition = camera.Eye;
 
             Shaders.DeferredSunlight.ShadowMap = TextureUnit.Texture4;
@@ -208,6 +223,7 @@ namespace SF3D
             Shaders.DeferredOmni.SpecularMap = TextureUnit.Texture1;
             Shaders.DeferredOmni.NormalMap = TextureUnit.Texture2;
             Shaders.DeferredOmni.PositionMap = TextureUnit.Texture3;
+            Shaders.DeferredOmni.CameraPosition = camera.Eye;
 
             GL.Enable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);

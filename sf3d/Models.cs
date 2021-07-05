@@ -7,7 +7,7 @@ namespace SF3D
 {
     public static class Models
     {
-        public static Model Plane, Tree, OmniLight;
+        public static Model Plane, Tree, OmniLight, TestCube;
         public static Atlas Atlas;
 
         public static void Init()
@@ -16,6 +16,7 @@ namespace SF3D
             Plane = WavefrontOBJ.Parse("models/jetfighter/jetfighter.obj").ToModel(Atlas);
             Tree = WavefrontOBJ.Parse("models/tree/tree.obj").ToModel(Atlas);
             OmniLight = WavefrontOBJ.Parse("models/omnilight/omnilight.obj").ToModel(Atlas);
+            TestCube = WavefrontOBJ.Parse("models/testcube/testcube.obj").ToModel(Atlas);
         }
 
         public static void Dispose()
@@ -24,6 +25,7 @@ namespace SF3D
             Plane.Dispose();
             Tree.Dispose();
             OmniLight.Dispose();
+            TestCube.Dispose();
         }
     }
 }

@@ -2,6 +2,15 @@
 
 SF3D is a simple flight simulator.
 
+### Features
+- Renders a subset of Wavefront OBJ models
+- Blinn-Phong lighting
+- Shadows
+- Bloom
+- Tone mapping
+- Unlimited number of omni & directional lights.
+- Skybox
+
 ### Building
 ```
 dotnet build
@@ -12,3 +21,7 @@ dotnet build
 - OpenGL 3.3
 - .NET runtime 5.0
 - libgdiplus
+
+### Used assets
+- Skyboxes were generated using the tool https://github.com/wwwtyro/space-3d
+- All other models & textures were made by myself

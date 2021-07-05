@@ -12,7 +12,9 @@ namespace SF3D
         /// <summary>
         ///  GBuffer-filling shader program. Diffuse color, specular color and normal vectors are stored in model vertices.
         /// </summary>
-        public static SceneShaderProgram GBufferVVV, Shadow;
+        public static AtlasShaderProgram GBufferVVV;
+        public static SkyboxShaderProgram Skybox;
+        public static SceneShaderProgram Shadow;
         public static DeferredSunlightShaderProgram DeferredSunlight;
         public static DeferredOmniShaderProgram DeferredOmni;
         public static PostProcessingEffect Identity;
@@ -25,6 +27,7 @@ namespace SF3D
             using(SF3DShaderLoader loader = new())
             {
                 GBufferVVV = new(loader.Get("shaders/vvv/common.vert"), loader.Get("shaders/vvv/gbuffer.frag"));
+                Skybox = new(loader.Get("shaders/skybox.vert"), loader.Get("shaders/skybox.frag"));
                 Shadow = new(loader.Get("shaders/shadow.vert"), loader.Get("shaders/empty.frag"));
                 DeferredSunlight = new(loader.GetDeferred(type: "directional", brdf: "blinn-phong", shadows: "pcf", background: true));
                 DeferredOmni = new(loader.GetDeferred(type: "omni", brdf: "blinn-phong"));
@@ -37,27 +40,46 @@ namespace SF3D
         public static void Dispose()
         {
             GBufferVVV.Dispose();
+            Skybox.Dispose();
             Shadow.Dispose();
             DeferredSunlight.Dispose();
+            DeferredOmni.Dispose();
             Identity.Dispose();
+            ToneMapping.Dispose();
+            FilterGreater.Dispose();
+            Kernel1D.Dispose();
         }
     }
     public class SceneShaderProgram : ShaderProgram
     {
-        private int uModel, uView, uProjection, uAtlas, uInvAtlasSize;
+        private int uModel, uView, uProjection;
         public SceneShaderProgram(params Shader[] shaders) : base(shaders) 
         {
             uModel = GetUniformLocation("model");
             uView = GetUniformLocation("view");
             uProjection = GetUniformLocation("projection");
-            uAtlas = GetUniformLocation("atlas");
-            uInvAtlasSize = GetUniformLocation("invAtlasSize");
         }
         public Matrix4 Model {set {EnsureBound(); GL.UniformMatrix4(uModel, false, ref value);}}
         public Matrix4 View {set {EnsureBound(); GL.UniformMatrix4(uView, false, ref value);}}
         public Matrix4 Projection {set {EnsureBound(); GL.UniformMatrix4(uProjection, false, ref value);}}
+    }
+    public class AtlasShaderProgram : SceneShaderProgram
+    {
+        private int uAtlas, uInvAtlasSize;
+        public AtlasShaderProgram(params Shader[] shaders) : base(shaders) 
+        {
+            uAtlas = GetUniformLocation("atlas");
+            uInvAtlasSize = GetUniformLocation("invAtlasSize");
+        }
         public TextureUnit Atlas {set {EnsureBound(); GL.Uniform1(uAtlas, (int) value - (int) TextureUnit.Texture0);}}
         public Vector2 AtlasSize {set {EnsureBound(); GL.Uniform2(uInvAtlasSize, new Vector2(1/value.X, 1/value.Y));}}
+    }
+
+    public class SkyboxShaderProgram : SceneShaderProgram
+    {
+        private int uCubemap;
+        public SkyboxShaderProgram(params Shader[] shaders) : base(shaders) => uCubemap = GetUniformLocation("cubemap");
+        public TextureUnit CubeMap {set {EnsureBound(); GL.Uniform1(uCubemap, (int) value - (int) TextureUnit.Texture0);}}
     }
 
     public class DeferredShaderProgram : ShaderProgram
@@ -119,7 +141,8 @@ namespace SF3D
             set
             {
                 Model = Matrix4.CreateScale(value.Range) * Matrix4.CreateTranslation(value.Position);
-                LightColor = value.Intensity;
+                LightColor = value.Color;
+                AmbientLightColor = value.AmbientColor;
                 Attenuation = value.Attenuation;
             }
         }
