@@ -16,7 +16,11 @@ namespace SF3D
         public Texture2D DiffuseMap {get; private set;}
         /// <summary> RGB = specular color, alpha = specular exponent </summary>
         public Texture2D SpecularMap {get; private set;}
-        /// <summary> Normalized surface normals in world space. </summary>
+        /// <summary> 
+        /// Normalized surface normals. 
+        /// Vectors are stored as v*0.5+0.5 because the texture can only fit values in range [0,1] and I don't want to use float textures
+        /// Normal=0 means the pixel is a background pixel and should not be shaded.
+        /// </summary>
         public Texture2D NormalMap {get; private set;}
         /// <summary> Fragment positions in world space. </summary>
         //TODO remove this later and recompute positions from projection+view matrix and ZBuffer instead

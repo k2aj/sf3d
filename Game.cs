@@ -28,7 +28,7 @@ namespace SF3D
         };
 
         private Scene scene = new();
-        private Camera camera = new(){Target = new(0.5f,0,0), Eye = new(0,0,-3)};
+        private Camera camera = new(){Target = new(0.5f,0,0), Eye = new(0,0,-3), ZNear = 0.25f, ZFar = 100};
         private const float cameraVelocity = 3;
         private GBuffer gBuffer;
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
@@ -72,7 +72,7 @@ namespace SF3D
 
             var rng = new Random();
             objectID = scene.Add(Models.Plane, Matrix4.Identity);
-            //scene.Add(terrain, Matrix4.CreateScale(0.25f));
+            scene.Add(Models.Terrain, Matrix4.Identity);
             var light = new OmniLight{Color = new(4), AmbientColor = new(1), Position = new(0,2f,1)};
             scene.Add(Models.OmniLight, Matrix4.CreateTranslation(0,0,5));
             for(int i=0; i<25; ++i)
@@ -173,7 +173,7 @@ namespace SF3D
             Shaders.Skybox.Bind();
             Shaders.Skybox.View = new Matrix4(new Matrix3(camera.ViewMatrix));
             Shaders.Skybox.Projection = camera.ProjectionMatrix;
-            Shaders.Skybox.Model = Matrix4.CreateScale(10) * Matrix4.CreateRotationX(-MathF.PI/3);
+            Shaders.Skybox.Model = Matrix4.CreateScale(10) * Matrix4.CreateRotationX(-MathF.PI/3+0.05f*t);
             Shaders.Skybox.CubeMap = TextureUnit.Texture9;
             Models.TestCube.Bind(shadow: true);
             Models.TestCube.Draw(shadow: true);
@@ -187,7 +187,7 @@ namespace SF3D
 
             // Render scene to shadow map
             var lightPos = new Vector3(0,10,0);
-            var lightProjection = Matrix4.CreateOrthographicOffCenter(-40, 40, -40, 40, 2, 20);
+            var lightProjection = Matrix4.CreateOrthographicOffCenter(-64, 64, -64, 64, 2, 20);
             var lightView = Matrix4.LookAt(lightPos, new Vector3(0.5f,0,0), Vector3.UnitY);
 
             shadowFbo.Bind();
@@ -207,9 +207,9 @@ namespace SF3D
             Shaders.DeferredSunlight.NormalMap = TextureUnit.Texture2;
             Shaders.DeferredSunlight.PositionMap = TextureUnit.Texture3;
 
-            Shaders.DeferredSunlight.AmbientLightColor = new(0.15f);
+            Shaders.DeferredSunlight.AmbientLightColor = new(0.1f);
             Shaders.DeferredSunlight.LightDirection = new(0,-1,0);
-            Shaders.DeferredSunlight.LightColor = new(3);
+            Shaders.DeferredSunlight.LightColor = new(0.1f);
             Shaders.DeferredSunlight.CameraPosition = camera.Eye;
 
             Shaders.DeferredSunlight.ShadowMap = TextureUnit.Texture4;
@@ -264,6 +264,8 @@ namespace SF3D
             Shaders.ToneMapping.BloomMap = TextureUnit.Texture6;
             Shaders.ToneMapping.Exposure = 0.25f;
             Shaders.ToneMapping.Apply();
+
+            //Models.Atlas.Texture.CopyTo(Vector2i.Zero, Models.Atlas.Texture.Size, Framebuffer.Default, new(128), new(512));
 
             SwapBuffers();
             base.OnRenderFrame(e);

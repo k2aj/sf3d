@@ -86,13 +86,27 @@ namespace DGL
             GL.TexSubImage2D(TextureTarget.Texture2D, 0, offset.X, offset.Y, bitmap.Width, bitmap.Height, PixelFormat.Bgra, PixelType.UnsignedByte, data.Scan0);
             bitmap.UnlockBits(data);
         }
-
         public void Allocate(Bitmap bitmap)
         {
             EnsureBound();
             Allocate(new Vector2i(bitmap.Width, bitmap.Height));
             Upload(bitmap, Vector2i.Zero);
         }
+        public void CopyTo(Vector2i offset, Vector2i size, Framebuffer target, Vector2i tgtOffset, Vector2i tgtSize)
+        {
+            target.EnsureBound(FramebufferTarget.DrawFramebuffer);
+            using(var fbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, this)))
+            {
+                fbo.Bind(FramebufferTarget.ReadFramebuffer);
+                target.Bind(FramebufferTarget.DrawFramebuffer);
+                GL.BlitFramebuffer(
+                    offset.X, offset.Y, offset.X+size.X, offset.Y+size.Y, 
+                    tgtOffset.X, tgtOffset.Y, tgtOffset.X+tgtSize.X, tgtOffset.Y+tgtSize.Y, 
+                    ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Linear
+                );
+            }
+        }
+        public void CopyTo(Framebuffer target) => CopyTo(Vector2i.Zero, Size, target, Vector2i.Zero, Size);
     }
 
     public class CubeMap : IDisposable
@@ -282,15 +296,20 @@ namespace DGL
             return new(this, new(topLeft, topLeft+new Vector2i(bitmap.Width, bitmap.Height)));
         }
 
+        private bool HasFreeBlockLargerThan(int log2BlockSize) => freeBlocks.Skip(log2BlockSize+1).Any(list => list.Any());
+
         private Box2i Allocate(int log2BlockSize)
         {
-            if(freeBlocks.Count > log2BlockSize && freeBlocks[log2BlockSize].Any()) {
+            // Ensure we have a free list that fits our desired block size
+            while(freeBlocks.Count < log2BlockSize+1) Expand();
+            if(freeBlocks[log2BlockSize].Any()) {
                 var result = freeBlocks[log2BlockSize].Last();
                 freeBlocks[log2BlockSize].RemoveAt(freeBlocks[log2BlockSize].Count-1);
                 return result;
             } else {
-                // Ensure we have blocks big enough to subdivide
-                while(log2BlockSize+2 >= freeBlocks.Count) Expand();
+                // Expand the atlas if there are no blocks big enough to subdivide
+                while(!HasFreeBlockLargerThan(log2BlockSize))
+                    Expand();
                 // Allocate 2x bigger block than necessary and subdivide it into smaller blocks
                 var blk = Allocate(log2BlockSize+1);
                 freeBlocks[log2BlockSize].Add(new(blk.Min + new Vector2i(blk.Size.X/2,0), blk.Min + new Vector2i(blk.Size.X,blk.Size.Y/2)));
