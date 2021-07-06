@@ -171,6 +171,7 @@ namespace DGL
         public TextureWrapMode WrapS {set => GL.SamplerParameter(handle, SamplerParameterName.TextureWrapS, (int) value);}
         public TextureWrapMode WrapT {set => GL.SamplerParameter(handle, SamplerParameterName.TextureWrapT, (int) value);}
         public TextureWrapMode Wrap {set {WrapS = value; WrapT = value;}}
+        public Vector4 BorderColor {set => GL.SamplerParameter(handle, SamplerParameterName.TextureBorderColor, new float[]{value.X, value.Y, value.Z, value.W});}
 
         public Sampler() => handle = GL.GenSampler();
 

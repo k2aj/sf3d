@@ -33,7 +33,7 @@ namespace SF3D
         private GBuffer gBuffer;
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
         private Texture2D shadowMap, hdr, bloom1, bloom2;
-        private Sampler sNearest, sLinear;
+        private Sampler sNearest, sLinear, sShadow;
         private CubeMap skybox;
 
         //, terrain;
@@ -65,6 +65,7 @@ namespace SF3D
 
             sNearest = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Nearest, MagFilter = TextureMagFilter.Nearest};
             sLinear = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Linear, MagFilter = TextureMagFilter.Linear};
+            sShadow = new(){Wrap = TextureWrapMode.ClampToBorder, MinFilter = TextureMinFilter.Nearest, MagFilter = TextureMagFilter.Nearest, BorderColor = new(1)};
 
             skybox = new("textures/alien-sky");
 
@@ -72,7 +73,12 @@ namespace SF3D
 
             var rng = new Random();
             objectID = scene.Add(Models.Plane, Matrix4.Identity);
-            scene.Add(Models.Terrain, Matrix4.Identity);
+            scene.Add(Models.Airport, Matrix4.Identity);
+            for(int x=-1; x<=1; ++x)
+            for(int z=-1; z<=1; ++z)
+            if(x != 0 || z != 0)
+                scene.Add(Models.Hills, Matrix4.CreateRotationY(MathF.PI/2 * rng.Next()%4)*Matrix4.CreateTranslation(128*new Vector3(x,0,z)));
+
             var light = new OmniLight{Color = new(4), AmbientColor = new(1), Position = new(0,2f,1)};
             scene.Add(Models.OmniLight, Matrix4.CreateTranslation(0,0,5));
             for(int i=0; i<25; ++i)
@@ -152,7 +158,7 @@ namespace SF3D
                 (TextureUnit.Texture1, gBuffer.SpecularMap, sNearest),
                 (TextureUnit.Texture2, gBuffer.NormalMap, sNearest),
                 (TextureUnit.Texture3, gBuffer.PositionMap, sNearest),
-                (TextureUnit.Texture4, shadowMap, sNearest),
+                (TextureUnit.Texture4, shadowMap, sShadow),
                 (TextureUnit.Texture5, hdr, sLinear),
                 (TextureUnit.Texture6, bloom1, sLinear),
                 (TextureUnit.Texture7, bloom2, sLinear),
@@ -186,9 +192,9 @@ namespace SF3D
             scene.Render(camera.ViewMatrix, projection, shadow: false);
 
             // Render scene to shadow map
-            var lightPos = new Vector3(0,10,0);
-            var lightProjection = Matrix4.CreateOrthographicOffCenter(-64, 64, -64, 64, 2, 20);
-            var lightView = Matrix4.LookAt(lightPos, new Vector3(0.5f,0,0), Vector3.UnitY);
+            var lightPos = new Vector3(camera.Eye.X,15,camera.Eye.Z);
+            var lightProjection = Matrix4.CreateOrthographicOffCenter(-100, 100, -100, 100, 2, 20);
+            var lightView = Matrix4.LookAt(lightPos, lightPos - new Vector3(0.01f,1,0), Vector3.UnitY);
 
             shadowFbo.Bind();
             GL.Viewport(0, 0, shadowFbo.Size.X, shadowFbo.Size.Y);

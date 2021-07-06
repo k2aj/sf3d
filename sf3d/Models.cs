@@ -7,7 +7,7 @@ namespace SF3D
 {
     public static class Models
     {
-        public static Model Plane, Tree, OmniLight, TestCube, Terrain;
+        public static Model Plane, Tree, OmniLight, TestCube, Airport, Hills;
         public static Atlas Atlas;
 
         public static void Init()
@@ -17,7 +17,8 @@ namespace SF3D
             Tree = WavefrontOBJ.Parse("models/tree/tree.obj").ToModel(Atlas);
             OmniLight = WavefrontOBJ.Parse("models/omnilight/omnilight.obj").ToModel(Atlas);
             TestCube = WavefrontOBJ.Parse("models/testcube/testcube.obj").ToModel(Atlas);
-            Terrain = WavefrontOBJ.Parse("models/terrain/terrain.obj").ToModel(Atlas);
+            Airport = WavefrontOBJ.Parse("models/terrain/terrain.obj").ToModel(Atlas);
+            Hills = WavefrontOBJ.Parse("models/hills/hills.obj").ToModel(Atlas);
         }
 
         public static void Dispose()
@@ -27,7 +28,8 @@ namespace SF3D
             Tree.Dispose();
             OmniLight.Dispose();
             TestCube.Dispose();
-            Terrain.Dispose();
+            Airport.Dispose();
+            Hills.Dispose();
         }
     }
 }
