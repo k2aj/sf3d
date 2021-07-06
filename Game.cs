@@ -15,12 +15,6 @@ using System.Drawing;
 
 namespace SF3D
 {
-    public static class RandomExtensions
-    {
-        public static float NextFloat(this Random random) => (float) random.NextDouble();
-        public static float NextFloat(this Random random, float min, float max) => random.NextFloat() * (max-min) + min;
-        public static Vector3 NextVector3(this Random random, float max) => new(random.NextFloat(-max,max), random.NextFloat(-max,max), random.NextFloat(-max,max));
-    }
     class Game : GameWindow
     {
         private static float[] gaussianBlurKernel = {
@@ -28,15 +22,14 @@ namespace SF3D
         };
 
         private Scene scene = new();
-        private Camera camera = new(){LookDir = new(0,0,-1), Eye = new(0,2,-3), ZNear = 0.25f, ZFar = 100};
-        private const float cameraVelocity = 3;
+        private World world = new();
+        private Camera camera = new(){LookDir = new(0,0,-1), Eye = new(0,2,-3), ZNear = 0.25f, ZFar = 200};
+        private const float cameraVelocity = 50;
         private GBuffer gBuffer;
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
         private Texture2D shadowMap, hdr, bloom1, bloom2;
         private Sampler sNearest, sLinear, sShadow;
         private CubeMap skybox;
-
-        //, terrain;
         Scene.ObjectID objectID;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
@@ -71,14 +64,8 @@ namespace SF3D
 
             var rng = new Random();
             objectID = scene.Add(Models.Plane, Matrix4.Identity);
-            scene.Add(Models.Airport, Matrix4.Identity);
-            for(int x=-1; x<=1; ++x)
-            for(int z=-1; z<=1; ++z)
-            if(x != 0 || z != 0)
-                scene.Add(Models.Hills, Matrix4.CreateRotationY(MathF.PI/2 * rng.Next()%4)*Matrix4.CreateTranslation(128*new Vector3(x,0,z)));
 
             var light = new OmniLight{Color = new(4), AmbientColor = new(1), Position = new(0,2f,1)};
-            scene.Add(Models.OmniLight, Matrix4.CreateTranslation(0,0,5));
             for(int i=0; i<25; ++i)
             {
                 scene.Add(Models.Tree, Matrix4.CreateScale(rng.NextFloat()+0.5f)*Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
@@ -133,6 +120,8 @@ namespace SF3D
             lookYaw += mouseDelta.X/100;
             camera.LookDir = Matrix3.CreateRotationY(lookYaw)*Matrix3.CreateRotationX(-lookPitch)*Vector3.UnitZ;
 
+            world.Update(scene, camera.Eye);
+
             base.OnUpdateFrame(e);
         }
         protected override void OnResize(ResizeEventArgs e)
@@ -149,7 +138,6 @@ namespace SF3D
 
             float aspectRatio = Size.X / Size.Y;
             var projection = camera.ProjectionMatrix;
-            //Matrix4.CreatePerspectiveFieldOfView(MathF.PI/2, aspectRatio, 0.25f, 40f, out Matrix4 projection);
 
             // Bind textures
             Texture2D.BindAll(
@@ -180,8 +168,8 @@ namespace SF3D
             scene.Render(camera.ViewMatrix, projection, shadow: false);
 
             // Render scene to shadow map
-            var lightPos = new Vector3(camera.Eye.X,15,camera.Eye.Z);
-            var lightProjection = Matrix4.CreateOrthographicOffCenter(-100, 100, -100, 100, 2, 20);
+            var lightPos = new Vector3(camera.Eye.X,35,camera.Eye.Z);
+            var lightProjection = Matrix4.CreateOrthographicOffCenter(-camera.ZFar, camera.ZFar, -camera.ZFar, camera.ZFar, 2, 40);
             var lightView = Matrix4.LookAt(lightPos, lightPos - new Vector3(0.01f,1,0), Vector3.UnitY);
 
             shadowFbo.Bind();
@@ -203,7 +191,7 @@ namespace SF3D
 
             Shaders.DeferredSunlight.AmbientLightColor = new(0.1f);
             Shaders.DeferredSunlight.LightDirection = new(0,-1,0);
-            Shaders.DeferredSunlight.LightColor = new(0.25f);
+            Shaders.DeferredSunlight.LightColor = new(0.3f);
             Shaders.DeferredSunlight.CameraPosition = camera.Eye;
 
             Shaders.DeferredSunlight.ShadowMap = TextureUnit.Texture4;
@@ -230,7 +218,7 @@ namespace SF3D
             Shaders.Fog.CameraPosition = camera.Eye;
             Shaders.Fog.InverseViewProjection = Matrix4.Invert(camera.ViewMatrix * camera.ProjectionMatrix);
             Shaders.Fog.InverseModel = Matrix4.CreateRotationX(1.2f) * Matrix4.CreateRotationY(-0.55f);
-            Shaders.Fog.FogRadii = new(0, camera.ZFar);
+            Shaders.Fog.FogRadii = new(0.75f*camera.ZFar, camera.ZFar);
             Shaders.Fog.FogColor = new(0,0,0.05f);
             Shaders.Fog.CubeMap = TextureUnit.Texture9;
             Shaders.Fog.Texture = TextureUnit.Texture10;

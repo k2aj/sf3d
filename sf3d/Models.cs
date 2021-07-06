@@ -7,7 +7,7 @@ namespace SF3D
 {
     public static class Models
     {
-        public static Model Plane, Tree, OmniLight, TestCube, Airport, Hills;
+        public static Model Plane, Tree, OmniLight, TestCube, Airport, Hills, Mountain, Volcano, Plains;
         public static Atlas Atlas;
 
         public static void Init()
@@ -19,6 +19,9 @@ namespace SF3D
             TestCube = WavefrontOBJ.Parse("models/testcube/testcube.obj").ToModel(Atlas);
             Airport = WavefrontOBJ.Parse("models/terrain/terrain.obj").ToModel(Atlas);
             Hills = WavefrontOBJ.Parse("models/hills/hills.obj").ToModel(Atlas);
+            Mountain = WavefrontOBJ.Parse("models/mountain/mountain.obj").ToModel(Atlas);
+            Volcano = WavefrontOBJ.Parse("models/volcano/volcano.obj").ToModel(Atlas);
+            Plains = WavefrontOBJ.Parse("models/plains/plains.obj").ToModel(Atlas);
         }
 
         public static void Dispose()
@@ -30,6 +33,9 @@ namespace SF3D
             TestCube.Dispose();
             Airport.Dispose();
             Hills.Dispose();
+            Mountain.Dispose();
+            Volcano.Dispose();
+            Plains.Dispose();
         }
     }
 }

@@ -2,7 +2,7 @@
 
 uniform mat4 shadowViewProjection;
 uniform sampler2D shadowMap;
-uniform float shadowBias = 0.01;
+uniform float shadowBias = 0.02;
 
 vec3 applyShadow(vec3 irradiance, vec3 position)
 {
