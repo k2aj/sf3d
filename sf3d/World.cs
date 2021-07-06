@@ -12,7 +12,7 @@ namespace SF3D
 
         public void Update(Scene scene, Vector3 cameraPosition)
         {
-            const int renderDistance = 2;
+            const int renderDistance = 4;
             // Load chunks in render distance
             Vector2i cameraChunkCoords = new((int)Math.Round(cameraPosition.X/128), (int)Math.Round(cameraPosition.Z/128));
             for(int dx = -renderDistance; dx <= renderDistance; ++dx)
@@ -21,7 +21,7 @@ namespace SF3D
                     var chunkCoords = cameraChunkCoords + new Vector2i(dx,dz);
                     if(!loadedChunks.ContainsKey(chunkCoords))
                     {
-                        Console.WriteLine($"Loading chunk {chunkCoords}");
+                        //Console.WriteLine($"Loading chunk {chunkCoords}");
                         var chunk = new Chunk(chunkCoords);
                         chunk.OnLoaded(scene);
                         loadedChunks.Add(chunkCoords, chunk);
@@ -35,7 +35,7 @@ namespace SF3D
                 var displacement = cameraChunkCoords - chunkCoords;
                 if((Math.Abs(displacement.X) > renderDistance) || (Math.Abs(displacement.Y) > renderDistance)) 
                 {
-                    Console.WriteLine($"Unloading chunk {chunkCoords}");
+                    //Console.WriteLine($"Unloading chunk {chunkCoords}");
                     unloadedChunkCoords.Add(chunkCoords);
                     chunk.OnUnloaded(scene);
                 }

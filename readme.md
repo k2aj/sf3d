@@ -6,10 +6,12 @@ SF3D is a simple flight simulator.
 - Renders a subset of Wavefront OBJ models
 - Blinn-Phong lighting
 - Shadows
+- Fog
 - Bloom
 - Tone mapping
 - Unlimited number of omni & directional lights.
 - Skybox
+- Infinite world
 
 ### Building
 ```

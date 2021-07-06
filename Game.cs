@@ -23,14 +23,14 @@ namespace SF3D
 
         private Scene scene = new();
         private World world = new();
-        private Camera camera = new(){LookDir = new(0,0,-1), Eye = new(0,2,-3), ZNear = 0.25f, ZFar = 200};
+        private Camera freeCamera = new(){LookDir = new(0,0,-1), Eye = new(0,2,-3), ZNear = 0.25f, ZFar = 200};
         private const float cameraVelocity = 50;
         private GBuffer gBuffer;
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
         private Texture2D shadowMap, hdr, bloom1, bloom2;
         private Sampler sNearest, sLinear, sShadow;
         private CubeMap skybox;
-        Scene.ObjectID objectID;
+        private Aircraft aircraft;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             unsafe 
@@ -63,14 +63,18 @@ namespace SF3D
             skybox = new("textures/alien-sky");
 
             var rng = new Random();
-            objectID = scene.Add(Models.Plane, Matrix4.Identity);
 
             var light = new OmniLight{Color = new(4), AmbientColor = new(1), Position = new(0,2f,1)};
             for(int i=0; i<25; ++i)
             {
-                scene.Add(Models.Tree, Matrix4.CreateScale(rng.NextFloat()+0.5f)*Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
+                //scene.Add(Models.Tree, Matrix4.CreateScale(rng.NextFloat()+0.5f)*Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
             }
             scene.Add(light);
+
+            aircraft = new(Models.Plane);
+            aircraft.Transform.Translation = new(0,1,0);
+            aircraft.Camera.ZFar = 500;
+            aircraft.OnSpawned(scene);
 
             GL.Enable(EnableCap.CullFace);
         }
@@ -93,24 +97,22 @@ namespace SF3D
             if(input.IsKeyDown(Keys.Escape))
                 Close();
 
-            scene.SetModelMatrix(objectID, Matrix4.CreateFromAxisAngle(new Vector3(0,1,0), 0.25f*t)*Matrix4.CreateTranslation(0,1,0));
-
             // Naive implementation of flying FPS-style camera
-            Vector3 cameraForward = new(camera.LookDir.X, 0, camera.LookDir.Z);
+            Vector3 cameraForward = new(freeCamera.LookDir.X, 0, freeCamera.LookDir.Z);
             cameraForward.Normalize();
             Vector3 cameraRight = Matrix3.CreateRotationY(MathF.PI/2) * cameraForward;
             if(input.IsKeyDown(Keys.A))
-                camera.Eye -= cameraRight*cameraVelocity*dt;
+                freeCamera.Eye -= cameraRight*cameraVelocity*dt;
             if(input.IsKeyDown(Keys.D))
-                camera.Eye += cameraRight*cameraVelocity*dt;
+                freeCamera.Eye += cameraRight*cameraVelocity*dt;
             if(input.IsKeyDown(Keys.W))
-                camera.Eye += cameraForward*cameraVelocity*dt;
+                freeCamera.Eye += cameraForward*cameraVelocity*dt;
             if(input.IsKeyDown(Keys.S))
-                camera.Eye -= cameraForward*cameraVelocity*dt;
+                freeCamera.Eye -= cameraForward*cameraVelocity*dt;
             if(input.IsKeyDown(Keys.Space))
-                camera.Eye += Vector3.UnitY*cameraVelocity*dt;
+                freeCamera.Eye += Vector3.UnitY*cameraVelocity*dt;
             if(input.IsKeyDown(Keys.LeftShift))
-                camera.Eye -= Vector3.UnitY*cameraVelocity*dt;
+                freeCamera.Eye -= Vector3.UnitY*cameraVelocity*dt;
 
             var mouseDelta = MouseState.Position - MouseState.PreviousPosition;
             mouseDelta = mouseDelta / (float)Math.Clamp(e.Time, 1/100f, 1/5f) / 60;
@@ -118,9 +120,11 @@ namespace SF3D
             // because it breaks Camera's view matrix because of some issues with Matrix4.LookAt
             lookPitch = (float) Math.Clamp(lookPitch + mouseDelta.Y/100, -Math.PI/2.01, Math.PI/2.01);
             lookYaw += mouseDelta.X/100;
-            camera.LookDir = Matrix3.CreateRotationY(lookYaw)*Matrix3.CreateRotationX(-lookPitch)*Vector3.UnitZ;
+            freeCamera.LookDir = Matrix3.CreateRotationY(lookYaw)*Matrix3.CreateRotationX(-lookPitch)*Vector3.UnitZ;
 
-            world.Update(scene, camera.Eye);
+            world.Update(scene, aircraft.Camera.Eye);
+            aircraft.Control(input, dt);
+            aircraft.Update(scene, dt);
 
             base.OnUpdateFrame(e);
         }
@@ -132,6 +136,8 @@ namespace SF3D
 
         protected override void OnRenderFrame(FrameEventArgs e)
         {
+            var camera = aircraft.Camera;
+
             gBuffer.Framebuffer.Bind();
             GL.Viewport(0, 0, gBuffer.Size.X, gBuffer.Size.Y);
             GL.Enable(EnableCap.DepthTest);

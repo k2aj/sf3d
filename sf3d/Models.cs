@@ -7,13 +7,14 @@ namespace SF3D
 {
     public static class Models
     {
-        public static Model Plane, Tree, OmniLight, TestCube, Airport, Hills, Mountain, Volcano, Plains;
+        public static Model Plane, Missile, Tree, OmniLight, TestCube, Airport, Hills, Mountain, Volcano, Plains;
         public static Atlas Atlas;
 
         public static void Init()
         {
             Atlas = new(new(512));
             Plane = WavefrontOBJ.Parse("models/jetfighter/jetfighter.obj").ToModel(Atlas);
+            Missile = WavefrontOBJ.Parse("models/missile/missile.obj").ToModel(Atlas);
             Tree = WavefrontOBJ.Parse("models/tree/tree.obj").ToModel(Atlas);
             OmniLight = WavefrontOBJ.Parse("models/omnilight/omnilight.obj").ToModel(Atlas);
             TestCube = WavefrontOBJ.Parse("models/testcube/testcube.obj").ToModel(Atlas);
@@ -28,6 +29,7 @@ namespace SF3D
         {
             Atlas.Dispose();
             Plane.Dispose();
+            Missile.Dispose();
             Tree.Dispose();
             OmniLight.Dispose();
             TestCube.Dispose();

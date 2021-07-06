@@ -88,10 +88,12 @@ namespace SF3D
         public Vector3 Position = Vector3.Zero;
         public Vector3 Color = Vector3.One;
         public Vector3 AmbientColor = new(0.1f);
+
+        private static float HMax(Vector3 v) => MathF.Max(v.X, MathF.Max(v.Y, v.Y));
         public float Range {
             get
             {
-                float delta = Attenuation.X*Attenuation.X - 4*Attenuation.Y*(1-1/Attenuation.Z);
+                float delta = Attenuation.X*Attenuation.X - 4*Attenuation.Y*(1-MathF.Max(HMax(AmbientColor), HMax(Color))/Attenuation.Z);
                 return (-Attenuation.X+MathF.Sqrt(delta))/(2*Attenuation.Y);
             }
         }
