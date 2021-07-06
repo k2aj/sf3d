@@ -6,6 +6,7 @@ uniform samplerCube cubemap;
 uniform sampler2D tex; //zbuffer
 
 uniform mat4 invViewProj;
+uniform mat4 invModel;
 uniform vec3 cameraPosition;
 uniform vec2 fogRadii;
 uniform vec3 fogColor;
@@ -27,10 +28,11 @@ void main()
     vec3 fWorldPos = homogenousPos.xyz / homogenousPos.w;
 
     vec3 displacement = fWorldPos - cameraPosition;
+    vec3 cubemapTexCoord = (invModel*vec4(displacement,1.0)).xyz;
 
     // Apply fog color below the camera & skybox above the camera
     float bgStrength = pow(max(dot(normalize(displacement), vec3(0,1,0)), 0), 0.5);
-    vec3 bgFogColor = mix(fogColor, texture(cubemap, displacement).rgb, bgStrength);
+    vec3 bgFogColor = mix(fogColor, texture(cubemap, cubemapTexCoord).rgb, bgStrength);
 
     // Fog/background intensifies as distance from camera increases
     float dist = length(displacement);

@@ -28,7 +28,7 @@ namespace SF3D
         };
 
         private Scene scene = new();
-        private Camera camera = new(){Target = new(0.5f,0,0), Eye = new(0,0,-3), ZNear = 0.25f, ZFar = 100};
+        private Camera camera = new(){LookDir = new(0,0,-1), Eye = new(0,2,-3), ZNear = 0.25f, ZFar = 100};
         private const float cameraVelocity = 3;
         private GBuffer gBuffer;
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
@@ -203,7 +203,7 @@ namespace SF3D
 
             Shaders.DeferredSunlight.AmbientLightColor = new(0.1f);
             Shaders.DeferredSunlight.LightDirection = new(0,-1,0);
-            Shaders.DeferredSunlight.LightColor = new(0.1f);
+            Shaders.DeferredSunlight.LightColor = new(0.25f);
             Shaders.DeferredSunlight.CameraPosition = camera.Eye;
 
             Shaders.DeferredSunlight.ShadowMap = TextureUnit.Texture4;
@@ -229,6 +229,7 @@ namespace SF3D
             Shaders.Fog.Bind();
             Shaders.Fog.CameraPosition = camera.Eye;
             Shaders.Fog.InverseViewProjection = Matrix4.Invert(camera.ViewMatrix * camera.ProjectionMatrix);
+            Shaders.Fog.InverseModel = Matrix4.CreateRotationX(1.2f) * Matrix4.CreateRotationY(-0.55f);
             Shaders.Fog.FogRadii = new(0, camera.ZFar);
             Shaders.Fog.FogColor = new(0,0,0.05f);
             Shaders.Fog.CubeMap = TextureUnit.Texture9;

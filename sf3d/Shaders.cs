@@ -157,13 +157,14 @@ namespace SF3D
 
     public class FogEffect : PostProcessingEffect
     {
-        private int uCubemap, uCameraPosition, uFogRadii, uInvViewProj, uFogColor;
+        private int uCubemap, uCameraPosition, uFogRadii, uInvViewProj, uInvModel, uFogColor;
         public FogEffect(params Shader[] shaders) : base(shaders)
         {
             uCubemap = GetUniformLocation("cubemap");
             uCameraPosition = GetUniformLocation("cameraPosition");
             uFogRadii = GetUniformLocation("fogRadii");
             uInvViewProj = GetUniformLocation("invViewProj");
+            uInvModel = GetUniformLocation("invModel");
             uFogColor = GetUniformLocation("fogColor");
         }
         public TextureUnit CubeMap {set {EnsureBound(); GL.Uniform1(uCubemap, (int) value - (int) TextureUnit.Texture0);}}
@@ -171,6 +172,7 @@ namespace SF3D
         public Vector2 FogRadii {set {EnsureBound(); GL.Uniform2(uFogRadii, value);}}
         public Vector3 FogColor {set {EnsureBound(); GL.Uniform3(uFogColor, value);}}
         public Matrix4 InverseViewProjection {set {EnsureBound(); GL.UniformMatrix4(uInvViewProj, false, ref value);}}
+        public Matrix4 InverseModel {set {EnsureBound(); GL.UniformMatrix4(uInvModel, false, ref value);}}
     }
 
     public sealed class ToneMappingEffect : PostProcessingEffect
