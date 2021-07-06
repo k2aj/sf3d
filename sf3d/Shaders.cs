@@ -13,11 +13,11 @@ namespace SF3D
         ///  GBuffer-filling shader program. Diffuse color, specular color and normal vectors are stored in model vertices.
         /// </summary>
         public static AtlasShaderProgram GBufferVVV;
-        public static SkyboxShaderProgram Skybox;
         public static SceneShaderProgram Shadow;
         public static DeferredSunlightShaderProgram DeferredSunlight;
         public static DeferredOmniShaderProgram DeferredOmni;
         public static PostProcessingEffect Identity;
+        public static FogEffect Fog;
         public static ToneMappingEffect ToneMapping;
         public static FilterGreaterEffect FilterGreater;
         public static Kernel1DEffect Kernel1D;
@@ -27,11 +27,11 @@ namespace SF3D
             using(SF3DShaderLoader loader = new())
             {
                 GBufferVVV = new(loader.Get("shaders/vvv/common.vert"), loader.Get("shaders/vvv/gbuffer.frag"));
-                Skybox = new(loader.Get("shaders/skybox.vert"), loader.Get("shaders/skybox.frag"));
                 Shadow = new(loader.Get("shaders/shadow.vert"), loader.Get("shaders/empty.frag"));
                 DeferredSunlight = new(loader.GetDeferred(type: "directional", brdf: "blinn-phong", shadows: "pcf", background: true));
                 DeferredOmni = new(loader.GetDeferred(type: "omni", brdf: "blinn-phong"));
                 Identity = new(loader.GetPostProcessing("identity"));
+                Fog = new(loader.GetPostProcessing("fog"));
                 ToneMapping = new(loader.GetPostProcessing("tone-mapping"));
                 FilterGreater = new(loader.GetPostProcessing("filter-greater"));
                 Kernel1D = new(loader.GetPostProcessing("kernel1d"));
@@ -40,11 +40,11 @@ namespace SF3D
         public static void Dispose()
         {
             GBufferVVV.Dispose();
-            Skybox.Dispose();
             Shadow.Dispose();
             DeferredSunlight.Dispose();
             DeferredOmni.Dispose();
             Identity.Dispose();
+            Fog.Dispose();
             ToneMapping.Dispose();
             FilterGreater.Dispose();
             Kernel1D.Dispose();
@@ -73,13 +73,6 @@ namespace SF3D
         }
         public TextureUnit Atlas {set {EnsureBound(); GL.Uniform1(uAtlas, (int) value - (int) TextureUnit.Texture0);}}
         public Vector2 AtlasSize {set {EnsureBound(); GL.Uniform2(uInvAtlasSize, new Vector2(1/value.X, 1/value.Y));}}
-    }
-
-    public class SkyboxShaderProgram : SceneShaderProgram
-    {
-        private int uCubemap;
-        public SkyboxShaderProgram(params Shader[] shaders) : base(shaders) => uCubemap = GetUniformLocation("cubemap");
-        public TextureUnit CubeMap {set {EnsureBound(); GL.Uniform1(uCubemap, (int) value - (int) TextureUnit.Texture0);}}
     }
 
     public class DeferredShaderProgram : ShaderProgram
@@ -160,6 +153,24 @@ namespace SF3D
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
         }
         public TextureUnit Texture {set {EnsureBound(); GL.Uniform1(uTex, (int) value - (int) TextureUnit.Texture0);}}
+    }
+
+    public class FogEffect : PostProcessingEffect
+    {
+        private int uCubemap, uCameraPosition, uFogRadii, uInvViewProj, uFogColor;
+        public FogEffect(params Shader[] shaders) : base(shaders)
+        {
+            uCubemap = GetUniformLocation("cubemap");
+            uCameraPosition = GetUniformLocation("cameraPosition");
+            uFogRadii = GetUniformLocation("fogRadii");
+            uInvViewProj = GetUniformLocation("invViewProj");
+            uFogColor = GetUniformLocation("fogColor");
+        }
+        public TextureUnit CubeMap {set {EnsureBound(); GL.Uniform1(uCubemap, (int) value - (int) TextureUnit.Texture0);}}
+        public Vector3 CameraPosition {set {EnsureBound(); GL.Uniform3(uCameraPosition, value);}}
+        public Vector2 FogRadii {set {EnsureBound(); GL.Uniform2(uFogRadii, value);}}
+        public Vector3 FogColor {set {EnsureBound(); GL.Uniform3(uFogColor, value);}}
+        public Matrix4 InverseViewProjection {set {EnsureBound(); GL.UniformMatrix4(uInvViewProj, false, ref value);}}
     }
 
     public sealed class ToneMappingEffect : PostProcessingEffect

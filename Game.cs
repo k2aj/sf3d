@@ -69,8 +69,6 @@ namespace SF3D
 
             skybox = new("textures/alien-sky");
 
-            //terrain = WavefrontOBJ.Parse("models/terrain/terrain.obj").ToModel(atlas);
-
             var rng = new Random();
             objectID = scene.Add(Models.Plane, Matrix4.Identity);
             scene.Add(Models.Airport, Matrix4.Identity);
@@ -147,6 +145,7 @@ namespace SF3D
         {
             gBuffer.Framebuffer.Bind();
             GL.Viewport(0, 0, gBuffer.Size.X, gBuffer.Size.Y);
+            GL.Enable(EnableCap.DepthTest);
 
             float aspectRatio = Size.X / Size.Y;
             var projection = camera.ProjectionMatrix;
@@ -162,7 +161,8 @@ namespace SF3D
                 (TextureUnit.Texture5, hdr, sLinear),
                 (TextureUnit.Texture6, bloom1, sLinear),
                 (TextureUnit.Texture7, bloom2, sLinear),
-                (TextureUnit.Texture8, Models.Atlas.Texture, sLinear)
+                (TextureUnit.Texture8, Models.Atlas.Texture, sLinear),
+                (TextureUnit.Texture10, gBuffer.ZBuffer, sNearest)
             );
             GL.ActiveTexture(TextureUnit.Texture9);
             skybox.Bind();
@@ -173,18 +173,6 @@ namespace SF3D
             GL.ClearBuffer(ClearBuffer.Color, 1, new float[] {0,0,0,0}); //specular color - doesn't matter for background
             GL.ClearBuffer(ClearBuffer.Color, 2, new float[] {0.5f,0.5f,0.5f,0}); //normal vectors - should be 0,0,0 for background but we store them as (normal+1)/2, so 0.5,0.5,0.5 stands for 0,0,0
             GL.ClearBuffer(ClearBuffer.Color, 3, new float[] {0,0,0,0}); //positions - don't matter for background
-
-            GL.Disable(EnableCap.DepthTest);
-            GL.CullFace(CullFaceMode.Front);
-            Shaders.Skybox.Bind();
-            Shaders.Skybox.View = new Matrix4(new Matrix3(camera.ViewMatrix));
-            Shaders.Skybox.Projection = camera.ProjectionMatrix;
-            Shaders.Skybox.Model = Matrix4.CreateScale(10) * Matrix4.CreateRotationX(-MathF.PI/3+0.05f*t);
-            Shaders.Skybox.CubeMap = TextureUnit.Texture9;
-            Models.TestCube.Bind(shadow: true);
-            Models.TestCube.Draw(shadow: true);
-            GL.CullFace(CullFaceMode.Back);
-            GL.Enable(EnableCap.DepthTest);
 
             Shaders.GBufferVVV.Bind();
             Shaders.GBufferVVV.Atlas = TextureUnit.Texture8;
@@ -235,6 +223,19 @@ namespace SF3D
             GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
             GL.BlendEquation(BlendEquationMode.FuncAdd);
             scene.RenderLights(camera);
+
+            // Apply fog and skybox
+            // this also needs blending
+            Shaders.Fog.Bind();
+            Shaders.Fog.CameraPosition = camera.Eye;
+            Shaders.Fog.InverseViewProjection = Matrix4.Invert(camera.ViewMatrix * camera.ProjectionMatrix);
+            Shaders.Fog.FogRadii = new(0, camera.ZFar);
+            Shaders.Fog.FogColor = new(0,0,0.05f);
+            Shaders.Fog.CubeMap = TextureUnit.Texture9;
+            Shaders.Fog.Texture = TextureUnit.Texture10;
+            GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
+            Shaders.Fog.Apply();
+
             GL.Disable(EnableCap.Blend);
 
             // Extract bright fragments into bloomFbo1
