@@ -61,6 +61,8 @@ namespace SF3D
 
         public void RenderLights(Camera camera)
         {
+            lights.RemoveAll(l => !l.IsAlive);
+
             Shaders.DeferredOmni.EnsureBound();
             Shaders.DeferredOmni.Projection = camera.ProjectionMatrix;
             Shaders.DeferredOmni.View = camera.ViewMatrix;
@@ -93,10 +95,11 @@ namespace SF3D
         public float Range {
             get
             {
-                float delta = Attenuation.X*Attenuation.X - 4*Attenuation.Y*(1-MathF.Max(HMax(AmbientColor), HMax(Color))/Attenuation.Z);
+                float delta = Attenuation.X*Attenuation.X - 4*Attenuation.Y*(1-1/Attenuation.Z);
                 return (-Attenuation.X+MathF.Sqrt(delta))/(2*Attenuation.Y);
             }
         }
+        public bool IsAlive = true;
         // const coefficient is always 1
         // X - linear coefficient
         // Y - quadratic coefficient

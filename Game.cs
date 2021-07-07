@@ -23,8 +23,6 @@ namespace SF3D
 
         private Scene scene = new();
         private World world = new();
-        private Camera freeCamera = new(){LookDir = new(0,0,-1), Eye = new(0,2,-3), ZNear = 0.25f, ZFar = 200};
-        private const float cameraVelocity = 50;
         private GBuffer gBuffer;
         private Framebuffer shadowFbo, hdrFbo, bloomFbo1, bloomFbo2;
         private Texture2D shadowMap, hdr, bloom1, bloom2;
@@ -33,27 +31,22 @@ namespace SF3D
         private Aircraft aircraft;
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
-            unsafe 
-            {
-                // Hide cursor because we're using a FPS-style camera
-                GLFW.SetInputMode(WindowPtr, CursorStateAttribute.Cursor, CursorModeValue.CursorDisabled);
-            }
             UpdateFrequency = 60.0;
 
-            gBuffer = new(size: new(1920,1080));
+            gBuffer = new(size: Size);
             Shaders.Init();
             Models.Init();
 
             shadowMap = new Texture2D(PixelInternalFormat.DepthComponent32, new(2048,2048));
             shadowFbo = new((FramebufferAttachment.DepthAttachment, shadowMap));
 
-            hdr = new Texture2D(PixelInternalFormat.Rgb16f, new(1920,1080));
+            hdr = new Texture2D(PixelInternalFormat.Rgb16f, Size);
             hdrFbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, hdr));
 
-            bloom1 = new Texture2D(PixelInternalFormat.Rgb16f, new(1920,1080));
+            bloom1 = new Texture2D(PixelInternalFormat.Rgb16f, Size);
             bloomFbo1 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom1));
 
-            bloom2 = new Texture2D(PixelInternalFormat.Rgb16f, new(1920,1080));
+            bloom2 = new Texture2D(PixelInternalFormat.Rgb16f, Size);
             bloomFbo2 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom2));
 
             sNearest = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Nearest, MagFilter = TextureMagFilter.Nearest};
@@ -74,7 +67,7 @@ namespace SF3D
             aircraft = new(Models.Plane);
             aircraft.Transform.Translation = new(0,1,0);
             aircraft.Camera.ZFar = 500;
-            aircraft.OnSpawned(scene);
+            world.Spawn(aircraft);
 
             GL.Enable(EnableCap.CullFace);
         }
@@ -88,49 +81,40 @@ namespace SF3D
         }
 
         private float t = 0;
-        float lookPitch, lookYaw;
         protected override void OnUpdateFrame(FrameEventArgs e)
         {
             float dt = (float) e.Time;
             t += dt;
-            var input = KeyboardState;
-            if(input.IsKeyDown(Keys.Escape))
+            var lookDir = new Vector4(MousePosition.X/(float)Size.X*2-1, MousePosition.Y/(float)Size.Y*(-2)+1, 1, 1) * (aircraft.Camera.ViewMatrix * aircraft.Camera.ProjectionMatrix).Inverted();
+            lookDir = lookDir / lookDir.W;
+            Input input = new(KeyboardState, MouseState, (lookDir.Xyz - aircraft.Camera.Eye).Normalized());
+
+            if(input.Keyboard.IsKeyDown(Keys.Escape))
                 Close();
-
-            // Naive implementation of flying FPS-style camera
-            Vector3 cameraForward = new(freeCamera.LookDir.X, 0, freeCamera.LookDir.Z);
-            cameraForward.Normalize();
-            Vector3 cameraRight = Matrix3.CreateRotationY(MathF.PI/2) * cameraForward;
-            if(input.IsKeyDown(Keys.A))
-                freeCamera.Eye -= cameraRight*cameraVelocity*dt;
-            if(input.IsKeyDown(Keys.D))
-                freeCamera.Eye += cameraRight*cameraVelocity*dt;
-            if(input.IsKeyDown(Keys.W))
-                freeCamera.Eye += cameraForward*cameraVelocity*dt;
-            if(input.IsKeyDown(Keys.S))
-                freeCamera.Eye -= cameraForward*cameraVelocity*dt;
-            if(input.IsKeyDown(Keys.Space))
-                freeCamera.Eye += Vector3.UnitY*cameraVelocity*dt;
-            if(input.IsKeyDown(Keys.LeftShift))
-                freeCamera.Eye -= Vector3.UnitY*cameraVelocity*dt;
-
-            var mouseDelta = MouseState.Position - MouseState.PreviousPosition;
-            mouseDelta = mouseDelta / (float)Math.Clamp(e.Time, 1/100f, 1/5f) / 60;
-            // We clamp to +-Math.PI/2.01 instead of +-Math.PI/2 to prevent the user from looking straight up/straight down,
-            // because it breaks Camera's view matrix because of some issues with Matrix4.LookAt
-            lookPitch = (float) Math.Clamp(lookPitch + mouseDelta.Y/100, -Math.PI/2.01, Math.PI/2.01);
-            lookYaw += mouseDelta.X/100;
-            freeCamera.LookDir = Matrix3.CreateRotationY(lookYaw)*Matrix3.CreateRotationX(-lookPitch)*Vector3.UnitZ;
-
-            world.Update(scene, aircraft.Camera.Eye);
-            aircraft.Control(input, dt);
-            aircraft.Update(scene, dt);
-
+            aircraft.Control(input);
+            world.Update(scene, aircraft.Camera.Eye, dt);
             base.OnUpdateFrame(e);
         }
         protected override void OnResize(ResizeEventArgs e)
         {
             gBuffer.Size = e.Size;
+
+            hdr.Dispose();
+            bloom1.Dispose();
+            bloom2.Dispose();
+            hdrFbo.Dispose();
+            bloomFbo1.Dispose();
+            bloomFbo2.Dispose();
+
+            hdr = new Texture2D(PixelInternalFormat.Rgb16f, e.Size);
+            hdrFbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, hdr));
+
+            bloom1 = new Texture2D(PixelInternalFormat.Rgb16f, e.Size);
+            bloomFbo1 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom1));
+
+            bloom2 = new Texture2D(PixelInternalFormat.Rgb16f, e.Size);
+            bloomFbo2 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom2));
+
             base.OnResize(e);
         }
 
@@ -224,8 +208,8 @@ namespace SF3D
             Shaders.Fog.CameraPosition = camera.Eye;
             Shaders.Fog.InverseViewProjection = Matrix4.Invert(camera.ViewMatrix * camera.ProjectionMatrix);
             Shaders.Fog.InverseModel = Matrix4.CreateRotationX(1.2f) * Matrix4.CreateRotationY(-0.55f);
-            Shaders.Fog.FogRadii = new(0.75f*camera.ZFar, camera.ZFar);
-            Shaders.Fog.FogColor = new(0,0,0.05f);
+            Shaders.Fog.FogRadii = new(0, camera.ZFar);
+            Shaders.Fog.FogColor = new(0.2f,0.2f,0.2f);
             Shaders.Fog.CubeMap = TextureUnit.Texture9;
             Shaders.Fog.Texture = TextureUnit.Texture10;
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);

@@ -6,51 +6,42 @@ using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace SF3D
 {
-    public sealed class Aircraft : Entity
+    public sealed class Aircraft : AerialEntity
     {
-        private const float maxSpeed = 100;
-        private float thrust = 0, pitchCtrl = 0, rollCtrl = 0;
+        //private OmniLight light = new(){Color = new(24,16,8), AmbientColor = new(1,0.66f,0.33f), Attenuation = new(0,0.01f,0.05f,0)};
+        private bool firingMissile = false;
+        private Vector3 aimDir = Vector3.UnitZ;
 
-        public Camera Camera = new(){Eye = Vector3.Zero};
-        private OmniLight light = new(){Color = new(24,16,8), AmbientColor = new(1,0.66f,0.33f), Attenuation = new(0,0.01f,0.05f,0)};
-
-        public Aircraft(Model model) : base(model) {}
-        override public void OnSpawned(Scene scene){
-            base.OnSpawned(scene);
-            scene.Add(light);
-        }
-        override public void Update(Scene scene, float dt)
+        public Aircraft(Model model) : base(model, new(-2,-1,-2,2,1,2)) 
         {
-            var forward = Transform.TransformOffset(new (0,0,1));
-            var up = Transform.TransformOffset(new (0,1,0));
-            var right = Transform.TransformOffset(new (1,0,0));
-
-            Velocity += forward*thrust*dt;
-
-            var extraPitch = Quaternion.FromAxisAngle(right, pitchCtrl*dt);
-            var extraRoll = Quaternion.FromAxisAngle(forward, rollCtrl*dt);
-
-            Transform.Orientation = (extraPitch*extraRoll*Transform.Orientation).Normalized();
-            Velocity = extraPitch*extraRoll*Velocity;
-            if(Velocity.Length > maxSpeed) Velocity = Velocity.Normalized() * maxSpeed;
-
-            base.Update(scene, dt);
-            light.Position = Transform.Translation - 1.5f*forward;
-            Camera.Eye = Transform.Translation - 4*forward + 1.25f*up;
-            Camera.LookDir = forward;
-            Camera.Up = up;
+            CanLand = true;
+            EngineLocations = new(){new(0.16f,0,-1.55f), new(-0.16f,0,-1.55f)};
         }
 
-        public void Control(KeyboardState keyboard, float dt)
+        private float reloadLeft = 0;
+        private int missileBay = 0;
+
+        public override void Update(World world, Scene scene, float dt)
         {
-            pitchCtrl = 0;
-            rollCtrl = 0;
-            if(keyboard.IsKeyDown(Keys.A)) rollCtrl -= 1;
-            if(keyboard.IsKeyDown(Keys.D)) rollCtrl += 1;
-            if(keyboard.IsKeyDown(Keys.W)) pitchCtrl += 1;
-            if(keyboard.IsKeyDown(Keys.S)) pitchCtrl -= 1;
-            if(keyboard.IsKeyDown(Keys.Space)) thrust = 10;
-            if(keyboard.IsKeyDown(Keys.LeftShift)) thrust = -10;
+            base.Update(world, scene, dt);
+
+            if(firingMissile && reloadLeft <= 0)
+            {
+                missileBay = (missileBay+1)%2;
+                var missile = new Missile(Models.Missile, Transform.TransformPosition(new(2*missileBay-1,-0.3f,0)), aimDir*Velocity.Length);
+                missile.Transform.Orientation = Transform.TransformOffset(new (0,0,1)).RotateTowards(aimDir) * Transform.Orientation;
+                world.Spawn(missile);
+                reloadLeft = 0.2f;
+            } else {
+                reloadLeft -= dt;
+            }
+        }
+
+        override public void Control(Input input)
+        {
+            base.Control(input);
+            firingMissile = input.Mouse.IsButtonDown(MouseButton.Left);
+            aimDir = input.LookDir;
         }
     }
 }
