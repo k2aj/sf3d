@@ -37,16 +37,16 @@ namespace SF3D
             Shaders.Init();
             Models.Init();
 
-            shadowMap = new Texture2D(PixelInternalFormat.DepthComponent32, new(2048,2048));
+            shadowMap = new Texture2D(PixelInternalFormat.DepthComponent32, new(4096,4096));
             shadowFbo = new((FramebufferAttachment.DepthAttachment, shadowMap));
 
             hdr = new Texture2D(PixelInternalFormat.Rgb16f, Size);
             hdrFbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, hdr));
 
-            bloom1 = new Texture2D(PixelInternalFormat.Rgb16f, Size);
+            bloom1 = new Texture2D(PixelInternalFormat.Rgb16f, Size/2);
             bloomFbo1 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom1));
 
-            bloom2 = new Texture2D(PixelInternalFormat.Rgb16f, Size);
+            bloom2 = new Texture2D(PixelInternalFormat.Rgb16f, Size/2);
             bloomFbo2 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom2));
 
             sNearest = new(){Wrap = TextureWrapMode.ClampToEdge, MinFilter = TextureMinFilter.Nearest, MagFilter = TextureMagFilter.Nearest};
@@ -58,15 +58,11 @@ namespace SF3D
             var rng = new Random();
 
             var light = new OmniLight{Color = new(4), AmbientColor = new(1), Position = new(0,2f,1)};
-            for(int i=0; i<25; ++i)
-            {
-                //scene.Add(Models.Tree, Matrix4.CreateScale(rng.NextFloat()+0.5f)*Matrix4.CreateRotationY(rng.NextFloat()*6.28f) * Matrix4.CreateTranslation((rng.NextFloat()-0.5f)*20,0,(rng.NextFloat()-0.5f)*20));
-            }
             scene.Add(light);
 
             aircraft = new(Models.Plane);
             aircraft.Transform.Translation = new(0,1,0);
-            aircraft.Camera.ZFar = 500;
+            aircraft.Camera.ZFar = 400;
             world.Spawn(aircraft);
 
             GL.Enable(EnableCap.CullFace);
@@ -91,6 +87,13 @@ namespace SF3D
 
             if(input.Keyboard.IsKeyDown(Keys.Escape))
                 Close();
+            if(input.Keyboard.IsKeyReleased(Keys.R) && aircraft.Transform.Translation != new Vector3(0,1,0))
+            {
+                aircraft = new Aircraft(Models.Plane);
+                aircraft.Transform.Translation = new(0,1,0);
+                aircraft.Camera.ZFar = 250;
+                world.Spawn(aircraft);
+            }
             aircraft.Control(input);
             world.Update(scene, aircraft.Camera.Eye, dt);
             base.OnUpdateFrame(e);
@@ -109,10 +112,10 @@ namespace SF3D
             hdr = new Texture2D(PixelInternalFormat.Rgb16f, e.Size);
             hdrFbo = new Framebuffer((FramebufferAttachment.ColorAttachment0, hdr));
 
-            bloom1 = new Texture2D(PixelInternalFormat.Rgb16f, e.Size);
+            bloom1 = new Texture2D(PixelInternalFormat.Rgb16f, e.Size/2);
             bloomFbo1 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom1));
 
-            bloom2 = new Texture2D(PixelInternalFormat.Rgb16f, e.Size);
+            bloom2 = new Texture2D(PixelInternalFormat.Rgb16f, e.Size/2);
             bloomFbo2 = new Framebuffer((FramebufferAttachment.ColorAttachment0, bloom2));
 
             base.OnResize(e);
@@ -158,9 +161,10 @@ namespace SF3D
             scene.Render(camera.ViewMatrix, projection, shadow: false);
 
             // Render scene to shadow map
-            var lightPos = new Vector3(camera.Eye.X,35,camera.Eye.Z);
-            var lightProjection = Matrix4.CreateOrthographicOffCenter(-camera.ZFar, camera.ZFar, -camera.ZFar, camera.ZFar, 2, 40);
-            var lightView = Matrix4.LookAt(lightPos, lightPos - new Vector3(0.01f,1,0), Vector3.UnitY);
+            var lightModelMatrix = Matrix4.CreateRotationX(MathF.PI/4)*Matrix4.CreateRotationY(2*MathF.PI*t/480);
+            var lightPos = new Vector3(camera.Eye.X,0,camera.Eye.Z)+(new Vector4(0,camera.ZFar,0,0)*lightModelMatrix).Xyz;
+            var lightProjection = Matrix4.CreateOrthographicOffCenter(-camera.ZFar, camera.ZFar, -camera.ZFar, camera.ZFar, 2, 1000);
+            var lightView = Matrix4.LookAt(lightPos, new Vector3(camera.Eye.X,0,camera.Eye.Z), Vector3.UnitY);
 
             shadowFbo.Bind();
             GL.Viewport(0, 0, shadowFbo.Size.X, shadowFbo.Size.Y);
@@ -207,7 +211,7 @@ namespace SF3D
             Shaders.Fog.Bind();
             Shaders.Fog.CameraPosition = camera.Eye;
             Shaders.Fog.InverseViewProjection = Matrix4.Invert(camera.ViewMatrix * camera.ProjectionMatrix);
-            Shaders.Fog.InverseModel = Matrix4.CreateRotationX(1.2f) * Matrix4.CreateRotationY(-0.55f);
+            Shaders.Fog.InverseModel = lightModelMatrix.Inverted() * Matrix4.CreateRotationX(1.2f) * Matrix4.CreateRotationY(-0.55f);
             Shaders.Fog.FogRadii = new(0, camera.ZFar);
             Shaders.Fog.FogColor = new(0.2f,0.2f,0.2f);
             Shaders.Fog.CubeMap = TextureUnit.Texture9;
@@ -251,7 +255,8 @@ namespace SF3D
             Shaders.ToneMapping.Exposure = 0.25f;
             Shaders.ToneMapping.Apply();
 
-            //Models.Atlas.Texture.CopyTo(Vector2i.Zero, Models.Atlas.Texture.Size, Framebuffer.Default, new(128), new(512));
+            if(KeyboardState.IsKeyDown(Keys.T))
+                Models.Atlas.Texture.CopyTo(Vector2i.Zero, Models.Atlas.Texture.Size, Framebuffer.Default, new(128), new(512));
 
             SwapBuffers();
             base.OnRenderFrame(e);

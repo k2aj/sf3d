@@ -10,11 +10,12 @@ namespace SF3D
 {
     public class AerialEntity : Entity
     {
-        protected float thrust = 0, pitchCtrl = 0, rollCtrl = 0;
+        protected float thrust = 0, pitchCtrl = 0, rollCtrl = 0, yawCtrl = 0;
         public float GravityMultiplier {get; init;} = 1;
         public float EnginePower {get; init;} = 20;
         public float PitchMobility {get; init;} = 1;
         public float RollMobility {get; init;} = 1;
+        public float YawMobility {get; init;} = 0.5f;
         public float LiftStrength {get; init;} = 0.4f;
         public Vector3 DragCoefficient {get; init;} = new(0.1f, 0.4f, 0.05f);
         public bool CanLand {get; init;} = false;
@@ -69,7 +70,8 @@ namespace SF3D
             // Steering affects velocity, velocity affects orientation (but that comes later)
             var extraPitch = Quaternion.FromAxisAngle(right, pitchCtrl*PitchMobility*dt);
             var extraRoll = Quaternion.FromAxisAngle(forward, rollCtrl*RollMobility*dt);
-            Velocity = extraPitch*extraRoll*Velocity;
+            var extraYaw = Quaternion.FromAxisAngle(up, yawCtrl*YawMobility*dt);
+            Velocity = extraYaw*extraPitch*extraRoll*Velocity;
 
             // Apply lift & drag
             Vector3 lift = Vector3.Cross(Velocity, right) * LiftStrength * dt * airDensityFactor; //lift implementation
@@ -133,11 +135,14 @@ namespace SF3D
         {
             pitchCtrl = 0;
             rollCtrl = 0;
+            yawCtrl = 0;
             thrust = 0;
             if(input.Keyboard.IsKeyDown(Keys.A)) rollCtrl -= 1;
             if(input.Keyboard.IsKeyDown(Keys.D)) rollCtrl += 1;
             if(input.Keyboard.IsKeyDown(Keys.W)) pitchCtrl += 1;
             if(input.Keyboard.IsKeyDown(Keys.S)) pitchCtrl -= 1;
+            if(input.Keyboard.IsKeyDown(Keys.Q)) yawCtrl += 1;
+            if(input.Keyboard.IsKeyDown(Keys.E)) yawCtrl -= 1;
             if(input.Keyboard.IsKeyDown(Keys.Space)) thrust = 1;
             if(input.Keyboard.IsKeyDown(Keys.LeftShift)) thrust = -1;
         }

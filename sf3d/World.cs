@@ -21,7 +21,7 @@ namespace SF3D
 
         public void Update(Scene scene, Vector3 cameraPosition, float dt)
         {
-            const int renderDistance = 4;
+            const int renderDistance = 3;
             // Load chunks in render distance
             Vector2i cameraChunkCoords = ToChunkCoords(cameraPosition);
             for(int dx = -renderDistance; dx <= renderDistance; ++dx)
@@ -105,6 +105,7 @@ namespace SF3D
         public List<Box3> Hitboxes = new();
         public List<Box3> LandingAreas = new();
         private List<Entity> localEntities = new();
+        private List<OmniLight> lights = new();
         public Chunk(Vector2i chunkCoords)
         {
             ChunkCoords = chunkCoords;
@@ -181,6 +182,7 @@ namespace SF3D
                                 Hitboxes.Add(new Box3(x-4,0,z-4,x+4,2*height,z+4));
                             }
                         }
+                    lights.Add(new OmniLight(){Position = chunkWorldCoords + new Vector3(0,12,0), Color = new(4,4,2), AmbientColor = new(0.2f,0.2f,0.1f), Attenuation = new(0.2f,0.01f,0.01f,0)});
                 }
                 else
                 {
@@ -197,6 +199,8 @@ namespace SF3D
             terrainID = scene.Add(terrain, Matrix4.CreateRotationY(MathF.PI/2*orientation)*Matrix4.CreateTranslation(ChunkCoords.X*128, 0, ChunkCoords.Y*128));
             foreach(var e in localEntities)
                 e.OnSpawned(world, scene);
+            foreach(var light in lights)
+                scene.Add(light);
         }
 
         public void OnUnloaded(World world, Scene scene)
@@ -204,6 +208,8 @@ namespace SF3D
             scene.Remove(terrainID);
             foreach(var e in localEntities)
                 e.OnDespawned(world, scene);
+            foreach(var light in lights)
+                light.IsAlive = false;
         }
 
         public void Update(World world, Scene scene, float dt)

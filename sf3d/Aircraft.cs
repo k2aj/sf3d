@@ -21,6 +21,11 @@ namespace SF3D
         private float reloadLeft = 0;
         private int missileBay = 0;
 
+        public override void OnDespawned(World world, Scene scene)
+        {
+            //base.OnDespawned(world, scene);
+        }
+
         public override void Update(World world, Scene scene, float dt)
         {
             base.Update(world, scene, dt);
