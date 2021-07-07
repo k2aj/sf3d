@@ -31,7 +31,7 @@ void main()
     vec3 cubemapTexCoord = (invModel*vec4(displacement,1.0)).xyz;
 
     // Apply fog color below the camera & skybox above the camera
-    float bgStrength = pow(max(dot(normalize(displacement), vec3(0,1,0)), 0), 1);
+    float bgStrength = max(dot(normalize(displacement), vec3(0,1,0)), 0);
     vec3 bgFogColor = mix(fogColor, texture(cubemap, cubemapTexCoord).rgb, bgStrength);
 
     // Fog/background intensifies as distance from camera increases
