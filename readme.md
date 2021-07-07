@@ -3,15 +3,22 @@
 SF3D is a simple flight simulator.
 
 ### Features
-- Renders a subset of Wavefront OBJ models
-- Blinn-Phong lighting
+- Open world
+- Deferred shading (supports omni & directional lights)
 - Shadows
-- Fog
+- Depth fog
 - Bloom
-- Tone mapping
-- Unlimited number of omni & directional lights.
-- Skybox
-- Infinite world
+
+### Controls
+- Left mouse button shoots missiles
+- Acceleration/deceleration: Space/Shift
+- Pitch: W/S
+- Yaw: Q/E
+- Roll: A/D
+- Restart: R
+- Go fullscreen: F11
+- Exit: ESC
+- Show texture atlas: T
 
 ### Building
 ```
@@ -22,7 +29,7 @@ dotnet build
 - Windows 8/10 or Linux
 - OpenGL 3.3
 - .NET runtime 5.0
-- libgdiplus
+- On Linux you also need to install libgdiplus (not sure about Windows)
 
 ### Used assets
 - Skyboxes were generated using the tool https://github.com/wwwtyro/space-3d

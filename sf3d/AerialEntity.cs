@@ -14,9 +14,9 @@ namespace SF3D
         public float GravityMultiplier {get; init;} = 1;
         public float EnginePower {get; init;} = 20;
         public float PitchMobility {get; init;} = 1;
-        public float RollMobility {get; init;} = 1;
+        public float RollMobility {get; init;} = 1.5f;
         public float YawMobility {get; init;} = 0.5f;
-        public float LiftStrength {get; init;} = 0.4f;
+        public float LiftStrength {get; init;} = 0.5f;
         public Vector3 DragCoefficient {get; init;} = new(0.1f, 0.4f, 0.05f);
         public bool CanLand {get; init;} = false;
         public Camera Camera = new(){Eye = Vector3.Zero};
@@ -24,6 +24,7 @@ namespace SF3D
         public List<Vector3> EngineLocations = new();
         private List<OmniLight> engineLights = new();
         private float engineBrightnessFactor = 0.1f;
+        public int ParticlesPerEngine {get; init;} = 0;
 
         public AerialEntity(Model model, Box3 hitbox) : base(model)
         {
@@ -93,7 +94,7 @@ namespace SF3D
             if(Hitbox.Min.Y <= 0)
             {
                 var cosLandingAngle = up.Y;
-                if(CanLand && cosLandingAngle >= 0.9f && Velocity.Y >= -10 & world.GetNearbyLandingAreas(Transform.Translation).Any(a => a.Intersects(Hitbox)))
+                if(CanLand && cosLandingAngle >= 0.8f && Velocity.Y >= -15 & world.GetNearbyLandingAreas(Transform.Translation).Any(a => a.Intersects(Hitbox)))
                 {
                     //Console.WriteLine("Landing ok.");
                     Transform.Translation.Y = Hitbox.HalfSize.Y;
@@ -107,7 +108,7 @@ namespace SF3D
 
             // Reduce lift & gravity at low altitudes because it causes microstuttering
             float liftGravityFactor = CanLand ? Math.Max(0, Math.Min(1, (Hitbox.Min.Y-0.0001f)/10)) : 1;
-            lift.Y = MathF.Min(lift.Y, 20*dt); //"lift compensation"
+            lift.Y = MathF.Min(lift.Y, 20*dt); //"lift compensation" (prevent excessive lift in horizontal flight)
             Velocity += liftGravityFactor*lift;
             Velocity.Y -= liftGravityFactor*20*dt*GravityMultiplier; //gravity implementation
 
@@ -119,11 +120,20 @@ namespace SF3D
 
             engineBrightnessFactor = (engineBrightnessFactor + (thrust > 0 ? dt : -dt)).Clamp(0.25f,1);
             var lightColor = new Vector3(3,2,1) * MathF.Sqrt(EnginePower/EngineLocations.Count)*engineBrightnessFactor;
+            var rng = new Random();
             foreach(var (light,pos) in engineLights.Zip(EngineLocations))
             {
                 light.Position = Transform.TransformPosition(pos);
                 light.Color = lightColor;
                 light.AmbientColor = light.Color/20;
+
+                for(int i=0; i<ParticlesPerEngine; ++i)
+                {
+                    var particle = new Particle(Models.Smoke, 0.1f, 0.2f);
+                    particle.Velocity = Velocity - Transform.TransformOffset(new(0,0,20)) + rng.NextVector3(2f);
+                    particle.Transform.Translation = Transform.TransformPosition(pos) + i/(float)ParticlesPerEngine*particle.Velocity*dt;
+                    world.Spawn(particle);
+                }
             }
     
             Camera.LookDir = forward;

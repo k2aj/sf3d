@@ -32,6 +32,8 @@ namespace SF3D
         public Game() : base(GameWindowSettings.Default, NativeWindowSettings.Default)
         {
             UpdateFrequency = 60.0;
+            //Size = new(128,72);
+            //WindowState = WindowState.Fullscreen;
 
             gBuffer = new(size: Size);
             Shaders.Init();
@@ -93,6 +95,11 @@ namespace SF3D
                 aircraft.Transform.Translation = new(0,1,0);
                 aircraft.Camera.ZFar = 250;
                 world.Spawn(aircraft);
+            }
+            if(input.Keyboard.IsKeyReleased(Keys.F11))
+            {
+                if(WindowState != WindowState.Fullscreen) WindowState = WindowState.Fullscreen;
+                else WindowState = WindowState.Normal;
             }
             aircraft.Control(input);
             world.Update(scene, aircraft.Camera.Eye, dt);
@@ -213,7 +220,7 @@ namespace SF3D
             Shaders.Fog.InverseViewProjection = Matrix4.Invert(camera.ViewMatrix * camera.ProjectionMatrix);
             Shaders.Fog.InverseModel = lightModelMatrix.Inverted() * Matrix4.CreateRotationX(1.2f) * Matrix4.CreateRotationY(-0.55f);
             Shaders.Fog.FogRadii = new(0, camera.ZFar);
-            Shaders.Fog.FogColor = new(0.2f,0.2f,0.2f);
+            Shaders.Fog.FogColor = new(0.1f,0.1f,0.15f);
             Shaders.Fog.CubeMap = TextureUnit.Texture9;
             Shaders.Fog.Texture = TextureUnit.Texture10;
             GL.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);

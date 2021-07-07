@@ -7,7 +7,7 @@ namespace SF3D
 {
     public static class Models
     {
-        public static Model Plane, Missile, Tree, Bush, Rock, DirtClump, OmniLight, TestCube, Airport, Hills, Mountain, Volcano, Plains, SkyscraperBase, SkyscraperFloor;
+        public static Model Plane, Missile, Tree, Bush, Rock, DirtClump, OmniLight, TestCube, Airport, Hills, Mountain, Volcano, Plains, SkyscraperBase, SkyscraperFloor, Smoke;
         public static Atlas Atlas;
 
         public static void Init()
@@ -28,6 +28,7 @@ namespace SF3D
             Plains = WavefrontOBJ.Parse("models/plains/plains.obj").ToModel(Atlas);
             SkyscraperBase = WavefrontOBJ.Parse("models/skyscraper/base.obj").ToModel(Atlas);
             SkyscraperFloor = WavefrontOBJ.Parse("models/skyscraper/floor.obj").ToModel(Atlas);
+            Smoke = WavefrontOBJ.Parse("models/smoke/smoke.obj").ToModel(Atlas);
         }
 
         public static void Dispose()
@@ -48,6 +49,7 @@ namespace SF3D
             Plains.Dispose();
             SkyscraperBase.Dispose();
             SkyscraperFloor.Dispose();
+            Smoke.Dispose();
         }
     }
 }

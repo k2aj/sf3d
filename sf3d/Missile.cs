@@ -20,6 +20,7 @@ namespace SF3D
             Velocity = velocity;
             Transform.Translation = position; 
             EngineLocations = new(){new(0,0,-1.5f)};
+            ParticlesPerEngine = 2;
         }
 
         public override void Update(World world, Scene scene, float dt)
@@ -29,7 +30,7 @@ namespace SF3D
             if(Transform.Translation.Y <= 3 || LifeTime >= 5 || world.GetNearbyHitboxes(Transform.Translation).Any(h => h.Intersects(box)))
             {
                 IsAlive = false;
-                world.Spawn(new Explosion(Transform.Translation));
+                world.Spawn(new Explosion(Transform.Translation){MaxSize = 10});
             }
         }
     }
