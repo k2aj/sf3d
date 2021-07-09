@@ -33,7 +33,7 @@ namespace SF3D
             if(firingMissile && reloadLeft <= 0)
             {
                 missileBay = (missileBay+1)%2;
-                var missile = new Missile(Models.Missile, Transform.TransformPosition(new(2*missileBay-1,-0.3f,0)), aimDir*Velocity.Length);
+                var missile = new Missile(Models.Missile, Transform.TransformPosition(new(2*missileBay-1,-0.3f,0)), aimDir*Velocity.Length*0.85f);
                 missile.Transform.Orientation = Transform.TransformOffset(new (0,0,1)).RotateTowards(aimDir) * Transform.Orientation;
                 world.Spawn(missile);
                 reloadLeft = 0.2f;

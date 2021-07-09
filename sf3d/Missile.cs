@@ -13,7 +13,7 @@ namespace SF3D
         public Missile(Model model, Vector3 position, Vector3 velocity) : base(model, new(-1,-1,-1,1,1,1)) 
         {
             LiftStrength = 0;
-            EnginePower = 40;
+            EnginePower = 120;
             DragCoefficient = new(0.3f, 0.3f, 0.05f);
             GravityMultiplier = 0;
             thrust = 1;
@@ -27,7 +27,7 @@ namespace SF3D
         {
             base.Update(world, scene, dt);
             var box = new Box3(Transform.Translation-new Vector3(3), Transform.Translation+new Vector3(3));
-            if(Transform.Translation.Y <= 3 || LifeTime >= 5 || world.GetNearbyHitboxes(Transform.Translation).Any(h => h.Intersects(box)))
+            if(Transform.Translation.Y <= 3 || LifeTime >= 2f || world.GetNearbyHitboxes(Transform.Translation).Any(h => h.Intersects(box)))
             {
                 IsAlive = false;
                 world.Spawn(new Explosion(Transform.Translation){MaxSize = 10});
